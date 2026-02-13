@@ -7,7 +7,6 @@ import { internalErrorLog } from "@/lib/errors";
 import { fail, ok } from "@/lib/response";
 import { connectOpenAISchema } from "@/lib/validators";
 import { assertWorkspaceOwner } from "@/lib/workspace";
-import { syncWorkspaceOpenAI } from "@/lib/openai-sync";
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
@@ -33,7 +32,8 @@ export async function POST(req: NextRequest) {
       create: {
         workspaceId,
         adminKeyEnc,
-        status: ConnectionStatus.DISCONNECTED
+        status: ConnectionStatus.DISCONNECTED,
+        lastError: null
       },
       update: {
         adminKeyEnc,
@@ -42,9 +42,7 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    void syncWorkspaceOpenAI(workspaceId, 30);
-
-    return ok({ success: true });
+    return ok({ success: true, sync: "queued" });
   } catch (error) {
     internalErrorLog("openai.connect", error);
     return fail("Could not save OpenAI connection", 500);

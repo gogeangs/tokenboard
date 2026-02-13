@@ -49,11 +49,14 @@ export async function GET(req: NextRequest) {
     }
 
     const items = Array.from(map.entries())
+      .sort((a, b) => {
+        if (a[1] === b[1]) return 0;
+        return a[1] > b[1] ? -1 : 1;
+      })
       .map(([key, totalTokens]) => ({
         key,
         totalTokens: totalTokens.toString()
-      }))
-      .sort((a, b) => Number(b.totalTokens) - Number(a.totalTokens));
+      }));
 
     return ok({
       by,
