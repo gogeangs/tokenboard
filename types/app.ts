@@ -3,4 +3,6 @@ export type WorkspaceOption = {
   displayName: string;
   slug: string;
   role: string;
+  openAIConfigured?: boolean;
+  openAIMode?: "ORGANIZATION" | "PERSONAL" | null;
 };

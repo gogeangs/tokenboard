@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { WorkspaceOption } from "@/types/app";
 
 type Props = {
@@ -8,6 +8,7 @@ type Props = {
 };
 
 export function SettingsClient({ workspaces }: Props) {
+  const [workspaceState, setWorkspaceState] = useState(workspaces);
   const [workspaceId, setWorkspaceId] = useState(workspaces[0]?.id ?? "");
   const [apiKey, setApiKey] = useState("");
   const [mode, setMode] = useState<"organization" | "personal">("organization");
@@ -20,6 +21,13 @@ export function SettingsClient({ workspaces }: Props) {
     return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
   }, []);
 
+  const selectedWorkspace = workspaceState.find((workspace) => workspace.id === workspaceId);
+
+  useEffect(() => {
+    if (!selectedWorkspace?.openAIMode) return;
+    setMode(selectedWorkspace.openAIMode === "PERSONAL" ? "personal" : "organization");
+  }, [selectedWorkspace?.openAIMode]);
+
   async function connectOpenAI(e: FormEvent) {
     e.preventDefault();
     setMessage(null);
@@ -31,6 +39,17 @@ export function SettingsClient({ workspaces }: Props) {
     const data = await res.json();
     if (!res.ok) return setMessage(data.error ?? "OpenAI connect failed");
     setApiKey("");
+    setWorkspaceState((prev) =>
+      prev.map((workspace) =>
+        workspace.id === workspaceId
+          ? {
+              ...workspace,
+              openAIConfigured: true,
+              openAIMode: mode === "personal" ? "PERSONAL" : "ORGANIZATION"
+            }
+          : workspace
+      )
+    );
     setMessage(`${mode === "personal" ? "Personal" : "Organization"} OpenAI key saved. Sync queued.`);
   }
 
@@ -59,7 +78,7 @@ export function SettingsClient({ workspaces }: Props) {
       <div className="card flex items-center justify-between">
         <h1 className="text-lg font-semibold">Settings</h1>
         <select className="input max-w-xs" value={workspaceId} onChange={(e) => setWorkspaceId(e.target.value)}>
-          {workspaces.map((workspace) => (
+          {workspaceState.map((workspace) => (
             <option key={workspace.id} value={workspace.id}>
               {workspace.displayName}
             </option>
@@ -72,6 +91,11 @@ export function SettingsClient({ workspaces }: Props) {
       <form className="card space-y-3" onSubmit={connectOpenAI}>
         <h2 className="text-base font-semibold">OpenAI Connection</h2>
         <p className="text-sm text-slate-600">Choose mode and save a key for personal credits or organization usage/cost sync.</p>
+        <p className="text-sm text-slate-700">
+          {selectedWorkspace?.openAIConfigured
+            ? `Key is already configured (${(selectedWorkspace.openAIMode ?? "ORGANIZATION").toLowerCase()}). Save again to replace it.`
+            : "No key saved for this workspace yet."}
+        </p>
         <select
           className="input"
           value={mode}

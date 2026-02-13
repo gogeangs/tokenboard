@@ -12,7 +12,12 @@ export default async function SettingsPage() {
         select: {
           id: true,
           slug: true,
-          displayName: true
+          displayName: true,
+          connection: {
+            select: {
+              mode: true
+            }
+          }
         }
       }
     }
@@ -22,7 +27,9 @@ export default async function SettingsPage() {
     id: m.workspace.id,
     slug: m.workspace.slug,
     displayName: m.workspace.displayName,
-    role: m.role
+    role: m.role,
+    openAIConfigured: Boolean(m.workspace.connection),
+    openAIMode: m.workspace.connection?.mode ?? null
   }));
 
   return <SettingsClient workspaces={workspaces} />;
