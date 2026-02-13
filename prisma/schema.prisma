@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkspaceRole {
+  OWNER
+  MEMBER
+}
+
+enum ConnectionStatus {
+  OK
+  DEGRADED
+  DISCONNECTED
+}
+
+model User {
+  id           String            @id @default(cuid())
+  email        String            @unique
+  passwordHash String
+  createdAt    DateTime          @default(now())
+  memberships  WorkspaceMember[]
+}
+
+model Workspace {
+  id           String            @id @default(cuid())
+  slug         String            @unique
+  displayName  String
+  createdAt    DateTime          @default(now())
+  memberships  WorkspaceMember[]
+  connection   OpenAIConnection?
+  dailyCosts   DailyCost[]
+  dailyUsage   DailyUsageCompletions[]
+  budgets      Budget[]
+}
+
+model WorkspaceMember {
+  userId      String
+  workspaceId String
+  role        WorkspaceRole @default(OWNER)
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([userId, workspaceId])
+  @@index([workspaceId])
+}
+
+model OpenAIConnection {
+  workspaceId  String           @id
+  adminKeyEnc  String
+  status       ConnectionStatus @default(DISCONNECTED)
+  lastSyncAt   DateTime?
+  lastError    String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  workspace    Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model DailyCost {
+  id          String   @id @default(cuid())
+  workspaceId String
+  date        DateTime
+  projectId   String   @default("")
+  lineItem    String   @default("")
+  currency    String
+  value       Decimal  @db.Decimal(18, 6)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, date, projectId, lineItem])
+  @@index([workspaceId, date])
+}
+
+model DailyUsageCompletions {
+  id          String   @id @default(cuid())
+  workspaceId String
+  date        DateTime
+  projectId   String   @default("")
+  userId      String   @default("")
+  apiKeyId    String   @default("")
+  model       String   @default("")
+  batch       String   @default("")
+  serviceTier String   @default("")
+  inputTokens BigInt   @default(0)
+  outputTokens BigInt  @default(0)
+  totalTokens BigInt   @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, date, projectId, userId, apiKeyId, model, batch, serviceTier])
+  @@index([workspaceId, date])
+}
+
+model Budget {
+  id          String   @id @default(cuid())
+  workspaceId String
+  month       String
+  currency    String   @default("usd")
+  amount      Decimal  @db.Decimal(18, 6)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, month])
+  @@index([workspaceId, month])
+}
