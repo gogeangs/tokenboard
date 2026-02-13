@@ -16,6 +16,7 @@ export async function GET() {
           displayName: true,
           connection: {
             select: {
+              mode: true,
               status: true,
               lastSyncAt: true,
               lastError: true

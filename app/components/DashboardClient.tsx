@@ -10,9 +10,14 @@ type SummaryResponse = {
   monthBudget: number | null;
   remaining: number | null;
   currency: string;
+  connectionMode: "ORGANIZATION" | "PERSONAL";
   lastSyncAt: string | null;
   status: string;
   lastError: string | null;
+  creditTotalGranted: number | null;
+  creditTotalUsed: number | null;
+  creditTotalAvailable: number | null;
+  creditCurrency: string | null;
 };
 
 type TrendResponse = {
@@ -82,7 +87,7 @@ export function DashboardClient({ workspaces }: Props) {
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <div className="card">
           <p className="text-sm text-slate-600">This month</p>
           <p className="text-2xl font-semibold">{summary ? `${summary.monthCost.toFixed(2)} ${summary.currency}` : "-"}</p>
@@ -101,6 +106,14 @@ export function DashboardClient({ workspaces }: Props) {
           <p className="text-sm text-slate-600">Status</p>
           <p className="text-2xl font-semibold">{summary?.status ?? "-"}</p>
         </div>
+        <div className="card">
+          <p className="text-sm text-slate-600">Personal credits</p>
+          <p className="text-2xl font-semibold">
+            {summary?.connectionMode === "PERSONAL" && summary.creditTotalAvailable !== null
+              ? `${summary.creditTotalAvailable.toFixed(2)} ${(summary.creditCurrency ?? "usd").toLowerCase()}`
+              : "-"}
+          </p>
+        </div>
       </div>
 
       <div className="card">
@@ -109,7 +122,14 @@ export function DashboardClient({ workspaces }: Props) {
       </div>
 
       <div className="card text-sm text-slate-700">
+        <p>Connection mode: {summary?.connectionMode ?? "-"}</p>
         <p>Last sync: {summary?.lastSyncAt ? new Date(summary.lastSyncAt).toLocaleString() : "Never"}</p>
+        {summary?.connectionMode === "PERSONAL" && summary.creditTotalGranted !== null ? (
+          <p className="mt-1">
+            Credits used/granted: {summary.creditTotalUsed?.toFixed(2)} / {summary.creditTotalGranted.toFixed(2)}{" "}
+            {(summary.creditCurrency ?? "usd").toLowerCase()}
+          </p>
+        ) : null}
         {summary?.lastError ? <p className="mt-1 text-red-600">Last error: {summary.lastError}</p> : null}
       </div>
     </div>

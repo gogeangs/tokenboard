@@ -55,7 +55,16 @@ export async function GET(req: NextRequest) {
     }),
     prisma.openAIConnection.findUnique({
       where: { workspaceId },
-      select: { lastSyncAt: true, status: true, lastError: true }
+      select: {
+        mode: true,
+        lastSyncAt: true,
+        status: true,
+        lastError: true,
+        creditTotalGranted: true,
+        creditTotalUsed: true,
+        creditTotalAvailable: true,
+        creditCurrency: true
+      }
     })
   ]);
 
@@ -72,8 +81,14 @@ export async function GET(req: NextRequest) {
     monthBudget,
     remaining,
     currency,
+    connectionMode: conn?.mode ?? "ORGANIZATION",
     lastSyncAt: conn?.lastSyncAt ?? null,
     status: conn?.status ?? "DISCONNECTED",
-    lastError: conn?.lastError ?? null
+    lastError: conn?.lastError ?? null,
+    creditTotalGranted: conn?.creditTotalGranted !== null && conn?.creditTotalGranted !== undefined ? Number(conn.creditTotalGranted) : null,
+    creditTotalUsed: conn?.creditTotalUsed !== null && conn?.creditTotalUsed !== undefined ? Number(conn.creditTotalUsed) : null,
+    creditTotalAvailable:
+      conn?.creditTotalAvailable !== null && conn?.creditTotalAvailable !== undefined ? Number(conn.creditTotalAvailable) : null,
+    creditCurrency: conn?.creditCurrency ?? null
   });
 }

@@ -9,7 +9,8 @@ type Props = {
 
 export function SettingsClient({ workspaces }: Props) {
   const [workspaceId, setWorkspaceId] = useState(workspaces[0]?.id ?? "");
-  const [adminKey, setAdminKey] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [mode, setMode] = useState<"organization" | "personal">("organization");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("usd");
   const [message, setMessage] = useState<string | null>(null);
@@ -25,12 +26,12 @@ export function SettingsClient({ workspaces }: Props) {
     const res = await fetch("/api/openai/connect", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ workspaceId, adminKey })
+      body: JSON.stringify({ workspaceId, apiKey, mode })
     });
     const data = await res.json();
     if (!res.ok) return setMessage(data.error ?? "OpenAI connect failed");
-    setAdminKey("");
-    setMessage("OpenAI key saved. Sync queued.");
+    setApiKey("");
+    setMessage(`${mode === "personal" ? "Personal" : "Organization"} OpenAI key saved. Sync queued.`);
   }
 
   async function saveBudget(e: FormEvent) {
@@ -70,13 +71,21 @@ export function SettingsClient({ workspaces }: Props) {
 
       <form className="card space-y-3" onSubmit={connectOpenAI}>
         <h2 className="text-base font-semibold">OpenAI Connection</h2>
-        <p className="text-sm text-slate-600">Save workspace-level OpenAI Admin API key.</p>
+        <p className="text-sm text-slate-600">Choose mode and save a key for personal credits or organization usage/cost sync.</p>
+        <select
+          className="input"
+          value={mode}
+          onChange={(e) => setMode(e.target.value as "organization" | "personal")}
+        >
+          <option value="organization">Organization (Admin API Key)</option>
+          <option value="personal">Personal (Personal API Key)</option>
+        </select>
         <input
           className="input"
           type="password"
-          value={adminKey}
-          onChange={(e) => setAdminKey(e.target.value)}
-          placeholder="sk-admin-..."
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          placeholder={mode === "personal" ? "sk-..." : "sk-admin-..."}
           required
         />
         <button className="btn" type="submit">

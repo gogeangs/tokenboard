@@ -1,4 +1,4 @@
-import { ConnectionStatus } from "@prisma/client";
+import { ConnectionStatus, OpenAIConnectionMode } from "@prisma/client";
 import { decryptSecret } from "@/lib/crypto";
 import { prisma } from "@/lib/db";
 import { internalErrorLog } from "@/lib/errors";
@@ -65,10 +65,26 @@ type OpenAIUsageResult = {
   next_page?: string | null;
 };
 
+type OpenAIPersonalCreditResult = {
+  total_granted?: number;
+  total_used?: number;
+  total_available?: number;
+  grants?: {
+    data?: Array<{
+      grant_amount?: number;
+      used_amount?: number;
+      effective_at?: number;
+      expires_at?: number;
+      currency?: string;
+    }>;
+  };
+};
+
 const OPENAI_BASE = "https://api.openai.com/v1";
 
-async function openAIFetch<T>(path: string, apiKey: string, params: URLSearchParams): Promise<T> {
-  const res = await fetch(`${OPENAI_BASE}${path}?${params.toString()}`, {
+async function openAIFetch<T>(path: string, apiKey: string, params?: URLSearchParams): Promise<T> {
+  const url = params ? `${OPENAI_BASE}${path}?${params.toString()}` : `${OPENAI_BASE}${path}`;
+  const res = await fetch(url, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${apiKey}`
@@ -145,6 +161,135 @@ async function fetchAllUsageBuckets(apiKey: string, startTime: number, endTime: 
   return buckets;
 }
 
+async function fetchPersonalCredits(apiKey: string): Promise<OpenAIPersonalCreditResult> {
+  return openAIFetch<OpenAIPersonalCreditResult>("/dashboard/billing/credit_grants", apiKey);
+}
+
+async function syncOrganizationWorkspace(workspaceId: string, apiKey: string, days: number): Promise<void> {
+  const now = new Date();
+  const utcToday = startOfDayUtc(now);
+  const start = new Date(utcToday.getTime() - days * 24 * 60 * 60 * 1000);
+  const startTime = toUnixSeconds(start);
+  const endTime = toUnixSeconds(new Date(utcToday.getTime() + 24 * 60 * 60 * 1000));
+
+  const [costBuckets, usageBuckets] = await Promise.all([
+    fetchAllCostBuckets(apiKey, startTime, endTime),
+    fetchAllUsageBuckets(apiKey, startTime, endTime)
+  ]);
+
+  await prisma.$transaction(async (tx) => {
+    for (const bucket of costBuckets) {
+      const day = startOfDayUtc(new Date(bucket.start_time * 1000));
+
+      for (const result of bucket.results ?? []) {
+        const value = result.amount?.value ?? 0;
+        const currency = (result.amount?.currency ?? "usd").toLowerCase();
+        const projectId = result.project_id ?? "";
+        const lineItem = result.line_item ?? "";
+
+        await tx.dailyCost.upsert({
+          where: {
+            workspaceId_date_projectId_lineItem: {
+              workspaceId,
+              date: day,
+              projectId,
+              lineItem
+            }
+          },
+          create: {
+            workspaceId,
+            date: day,
+            projectId,
+            lineItem,
+            currency,
+            value
+          },
+          update: {
+            currency,
+            value
+          }
+        });
+      }
+    }
+
+    for (const bucket of usageBuckets) {
+      const day = startOfDayUtc(new Date(bucket.start_time * 1000));
+
+      for (const result of bucket.results ?? bucket.result ?? []) {
+        const inputTokens = BigInt(result.input_tokens ?? 0);
+        const outputTokens = BigInt(result.output_tokens ?? 0);
+        const totalTokens = inputTokens + outputTokens;
+
+        await tx.dailyUsageCompletions.upsert({
+          where: {
+            workspaceId_date_projectId_userId_apiKeyId_model_batch_serviceTier: {
+              workspaceId,
+              date: day,
+              projectId: result.project_id ?? "",
+              userId: result.user_id ?? "",
+              apiKeyId: result.api_key_id ?? "",
+              model: result.model ?? "",
+              batch: String(result.batch ?? ""),
+              serviceTier: result.service_tier ?? ""
+            }
+          },
+          create: {
+            workspaceId,
+            date: day,
+            projectId: result.project_id ?? "",
+            userId: result.user_id ?? "",
+            apiKeyId: result.api_key_id ?? "",
+            model: result.model ?? "",
+            batch: String(result.batch ?? ""),
+            serviceTier: result.service_tier ?? "",
+            inputTokens,
+            outputTokens,
+            totalTokens
+          },
+          update: {
+            inputTokens,
+            outputTokens,
+            totalTokens
+          }
+        });
+      }
+    }
+
+    await tx.openAIConnection.update({
+      where: { workspaceId },
+      data: {
+        status: ConnectionStatus.OK,
+        lastSyncAt: new Date(),
+        lastError: null,
+        creditTotalGranted: null,
+        creditTotalUsed: null,
+        creditTotalAvailable: null,
+        creditCurrency: null
+      }
+    });
+  });
+}
+
+async function syncPersonalWorkspace(workspaceId: string, apiKey: string): Promise<void> {
+  const credits = await fetchPersonalCredits(apiKey);
+
+  const inferredCurrency =
+    credits.grants?.data?.find((grant) => typeof grant.currency === "string")?.currency?.toLowerCase() ?? "usd";
+
+  await prisma.openAIConnection.update({
+    where: { workspaceId },
+    data: {
+      status: ConnectionStatus.OK,
+      lastSyncAt: new Date(),
+      lastError: null,
+      creditTotalGranted: credits.total_granted ?? 0,
+      creditTotalUsed: credits.total_used ?? 0,
+      creditTotalAvailable: credits.total_available ?? 0,
+      creditCurrency: inferredCurrency
+    }
+  });
+}
+
 export async function syncWorkspaceOpenAI(workspaceId: string, days = 30): Promise<void> {
   const connection = await prisma.openAIConnection.findUnique({ where: { workspaceId } });
   if (!connection) return;
@@ -164,105 +309,13 @@ export async function syncWorkspaceOpenAI(workspaceId: string, days = 30): Promi
     return;
   }
 
-  const now = new Date();
-  const utcToday = startOfDayUtc(now);
-  const start = new Date(utcToday.getTime() - days * 24 * 60 * 60 * 1000);
-  const startTime = toUnixSeconds(start);
-  const endTime = toUnixSeconds(new Date(utcToday.getTime() + 24 * 60 * 60 * 1000));
-
   try {
-    const [costBuckets, usageBuckets] = await Promise.all([
-      fetchAllCostBuckets(apiKey, startTime, endTime),
-      fetchAllUsageBuckets(apiKey, startTime, endTime)
-    ]);
+    if (connection.mode === OpenAIConnectionMode.PERSONAL) {
+      await syncPersonalWorkspace(workspaceId, apiKey);
+      return;
+    }
 
-    await prisma.$transaction(async (tx) => {
-      for (const bucket of costBuckets) {
-        const day = startOfDayUtc(new Date(bucket.start_time * 1000));
-
-        for (const result of bucket.results ?? []) {
-          const value = result.amount?.value ?? 0;
-          const currency = (result.amount?.currency ?? "usd").toLowerCase();
-          const projectId = result.project_id ?? "";
-          const lineItem = result.line_item ?? "";
-
-          await tx.dailyCost.upsert({
-            where: {
-              workspaceId_date_projectId_lineItem: {
-                workspaceId,
-                date: day,
-                projectId,
-                lineItem
-              }
-            },
-            create: {
-              workspaceId,
-              date: day,
-              projectId,
-              lineItem,
-              currency,
-              value
-            },
-            update: {
-              currency,
-              value
-            }
-          });
-        }
-      }
-
-      for (const bucket of usageBuckets) {
-        const day = startOfDayUtc(new Date(bucket.start_time * 1000));
-
-        for (const result of bucket.results ?? bucket.result ?? []) {
-          const inputTokens = BigInt(result.input_tokens ?? 0);
-          const outputTokens = BigInt(result.output_tokens ?? 0);
-          const totalTokens = inputTokens + outputTokens;
-
-          await tx.dailyUsageCompletions.upsert({
-            where: {
-              workspaceId_date_projectId_userId_apiKeyId_model_batch_serviceTier: {
-                workspaceId,
-                date: day,
-                projectId: result.project_id ?? "",
-                userId: result.user_id ?? "",
-                apiKeyId: result.api_key_id ?? "",
-                model: result.model ?? "",
-                batch: String(result.batch ?? ""),
-                serviceTier: result.service_tier ?? ""
-              }
-            },
-            create: {
-              workspaceId,
-              date: day,
-              projectId: result.project_id ?? "",
-              userId: result.user_id ?? "",
-              apiKeyId: result.api_key_id ?? "",
-              model: result.model ?? "",
-              batch: String(result.batch ?? ""),
-              serviceTier: result.service_tier ?? "",
-              inputTokens,
-              outputTokens,
-              totalTokens
-            },
-            update: {
-              inputTokens,
-              outputTokens,
-              totalTokens
-            }
-          });
-        }
-      }
-
-      await tx.openAIConnection.update({
-        where: { workspaceId },
-        data: {
-          status: ConnectionStatus.OK,
-          lastSyncAt: new Date(),
-          lastError: null
-        }
-      });
-    });
+    await syncOrganizationWorkspace(workspaceId, apiKey, days);
   } catch (error) {
     await prisma.openAIConnection.update({
       where: { workspaceId },

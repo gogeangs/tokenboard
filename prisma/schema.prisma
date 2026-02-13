@@ -18,6 +18,11 @@ enum ConnectionStatus {
   DISCONNECTED
 }
 
+enum OpenAIConnectionMode {
+  ORGANIZATION
+  PERSONAL
+}
+
 model User {
   id           String            @id @default(cuid())
   email        String            @unique
@@ -51,15 +56,20 @@ model WorkspaceMember {
 }
 
 model OpenAIConnection {
-  workspaceId  String           @id
-  adminKeyEnc  String
-  status       ConnectionStatus @default(DISCONNECTED)
-  lastSyncAt   DateTime?
-  lastError    String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  workspaceId          String               @id
+  adminKeyEnc          String
+  mode                 OpenAIConnectionMode @default(ORGANIZATION)
+  status               ConnectionStatus     @default(DISCONNECTED)
+  lastSyncAt           DateTime?
+  lastError            String?
+  creditTotalGranted   Decimal?             @db.Decimal(18, 6)
+  creditTotalUsed      Decimal?             @db.Decimal(18, 6)
+  creditTotalAvailable Decimal?             @db.Decimal(18, 6)
+  creditCurrency       String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
 
-  workspace    Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace            Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model DailyCost {

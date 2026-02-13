@@ -1,4 +1,4 @@
-import { ConnectionStatus } from "@prisma/client";
+import { ConnectionStatus, OpenAIConnectionMode } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { encryptSecret } from "@/lib/crypto";
@@ -19,30 +19,42 @@ export async function POST(req: NextRequest) {
       return fail("Invalid request", 400);
     }
 
-    const { workspaceId, adminKey } = parsed.data;
+    const { workspaceId, apiKey, mode } = parsed.data;
     const owner = await assertWorkspaceOwner(user.id, workspaceId);
     if (!owner) {
       return fail("Forbidden", 403);
     }
 
-    const adminKeyEnc = encryptSecret(adminKey);
+    const adminKeyEnc = encryptSecret(apiKey);
 
     await prisma.openAIConnection.upsert({
       where: { workspaceId },
       create: {
         workspaceId,
         adminKeyEnc,
+        mode: mode === "personal" ? OpenAIConnectionMode.PERSONAL : OpenAIConnectionMode.ORGANIZATION,
         status: ConnectionStatus.DISCONNECTED,
-        lastError: null
+        lastSyncAt: null,
+        lastError: null,
+        creditTotalGranted: null,
+        creditTotalUsed: null,
+        creditTotalAvailable: null,
+        creditCurrency: null
       },
       update: {
         adminKeyEnc,
+        mode: mode === "personal" ? OpenAIConnectionMode.PERSONAL : OpenAIConnectionMode.ORGANIZATION,
         status: ConnectionStatus.DISCONNECTED,
-        lastError: null
+        lastSyncAt: null,
+        lastError: null,
+        creditTotalGranted: null,
+        creditTotalUsed: null,
+        creditTotalAvailable: null,
+        creditCurrency: null
       }
     });
 
-    return ok({ success: true, sync: "queued" });
+    return ok({ success: true, sync: "queued", mode });
   } catch (error) {
     internalErrorLog("openai.connect", error);
     return fail("Could not save OpenAI connection", 500);

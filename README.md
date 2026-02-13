@@ -1,15 +1,17 @@
 # TokenBoard MVP
 
-TokenBoard is a Next.js + Postgres + Prisma web MVP for viewing OpenAI organization costs/usage by workspace.
+TokenBoard is a Next.js + Postgres + Prisma web MVP for viewing OpenAI costs/usage and personal credits by workspace.
 
 ## Features
 
 - Email/password auth (JWT in HTTPOnly cookie)
 - Workspace model with owner membership
-- OpenAI Admin Key storage with AES-256-GCM encryption
+- OpenAI key storage with AES-256-GCM encryption (organization admin key or personal key)
 - OpenAI data sync from:
   - `GET /v1/organization/costs`
   - `GET /v1/organization/usage/completions`
+- Personal credit sync from:
+  - `GET /v1/dashboard/billing/credit_grants`
 - Dashboard summary + trend chart + breakdown + settings
 - Monthly budget (remaining budget calculation)
 - Cron sync endpoint protected by `CRON_SECRET`
@@ -88,6 +90,7 @@ docker compose down
 - `GET /api/me`
 - `GET /api/workspaces`
 - `POST /api/openai/connect`
+  - body: `{ workspaceId, apiKey, mode: "organization" | "personal" }`
 - `POST /api/budgets`
 - `GET /api/summary?workspaceId=&month=YYYY-MM`
 - `GET /api/trend?workspaceId=&from=&to=` (`from/to` ISO datetime)
@@ -122,7 +125,7 @@ Vercel will include `Authorization: Bearer ${CRON_SECRET}` when env var is set.
 
 ## Security Notes
 
-- OpenAI Admin Keys are never sent to client storage.
+- OpenAI keys are never sent to client storage.
 - Encrypted at rest via AES-256-GCM (`ENCRYPTION_KEY`).
 - Sensitive values are not logged.
 - All workspace APIs verify membership/ownership.

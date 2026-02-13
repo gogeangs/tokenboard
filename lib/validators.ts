@@ -7,7 +7,8 @@ export const authSchema = z.object({
 
 export const connectOpenAISchema = z.object({
   workspaceId: z.string().min(1),
-  adminKey: z.string().min(20)
+  apiKey: z.string().min(20),
+  mode: z.enum(["organization", "personal"]).default("organization")
 });
 
 export const budgetSchema = z.object({
