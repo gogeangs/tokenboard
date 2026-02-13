@@ -54,6 +54,14 @@ export async function POST(req: NextRequest) {
       }
     });
 
+    await prisma.dailyCost.deleteMany({
+      where: {
+        workspaceId,
+        projectId: "__personal__",
+        lineItem: "credit_estimate"
+      }
+    });
+
     return ok({ success: true, sync: "queued", mode });
   } catch (error) {
     internalErrorLog("openai.connect", error);
