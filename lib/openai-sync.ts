@@ -270,23 +270,77 @@ async function syncOrganizationWorkspace(workspaceId: string, apiKey: string, da
   });
 }
 
-async function syncPersonalWorkspace(workspaceId: string, apiKey: string): Promise<void> {
+async function syncPersonalWorkspace(
+  workspaceId: string,
+  apiKey: string,
+  previousTotalUsed: number | null
+): Promise<void> {
   const credits = await fetchPersonalCredits(apiKey);
+  const currentTotalUsed = credits.total_used ?? 0;
+  const deltaUsed =
+    previousTotalUsed === null ? 0 : Math.max(0, currentTotalUsed - previousTotalUsed);
 
   const inferredCurrency =
     credits.grants?.data?.find((grant) => typeof grant.currency === "string")?.currency?.toLowerCase() ?? "usd";
 
-  await prisma.openAIConnection.update({
-    where: { workspaceId },
-    data: {
-      status: ConnectionStatus.OK,
-      lastSyncAt: new Date(),
-      lastError: null,
-      creditTotalGranted: credits.total_granted ?? 0,
-      creditTotalUsed: credits.total_used ?? 0,
-      creditTotalAvailable: credits.total_available ?? 0,
-      creditCurrency: inferredCurrency
+  await prisma.$transaction(async (tx) => {
+    if (deltaUsed > 0) {
+      const today = startOfDayUtc(new Date());
+      const projectId = "__personal__";
+      const lineItem = "credit_estimate";
+
+      const existing = await tx.dailyCost.findUnique({
+        where: {
+          workspaceId_date_projectId_lineItem: {
+            workspaceId,
+            date: today,
+            projectId,
+            lineItem
+          }
+        },
+        select: {
+          value: true
+        }
+      });
+
+      const nextValue = Number(existing?.value ?? 0) + deltaUsed;
+
+      await tx.dailyCost.upsert({
+        where: {
+          workspaceId_date_projectId_lineItem: {
+            workspaceId,
+            date: today,
+            projectId,
+            lineItem
+          }
+        },
+        create: {
+          workspaceId,
+          date: today,
+          projectId,
+          lineItem,
+          currency: inferredCurrency,
+          value: nextValue
+        },
+        update: {
+          currency: inferredCurrency,
+          value: nextValue
+        }
+      });
     }
+
+    await tx.openAIConnection.update({
+      where: { workspaceId },
+      data: {
+        status: ConnectionStatus.OK,
+        lastSyncAt: new Date(),
+        lastError: null,
+        creditTotalGranted: credits.total_granted ?? 0,
+        creditTotalUsed: currentTotalUsed,
+        creditTotalAvailable: credits.total_available ?? 0,
+        creditCurrency: inferredCurrency
+      }
+    });
   });
 }
 
@@ -311,7 +365,11 @@ export async function syncWorkspaceOpenAI(workspaceId: string, days = 30): Promi
 
   try {
     if (connection.mode === OpenAIConnectionMode.PERSONAL) {
-      await syncPersonalWorkspace(workspaceId, apiKey);
+      const previousTotalUsed =
+        connection.creditTotalUsed === null || connection.creditTotalUsed === undefined
+          ? null
+          : Number(connection.creditTotalUsed);
+      await syncPersonalWorkspace(workspaceId, apiKey, previousTotalUsed);
       return;
     }
 

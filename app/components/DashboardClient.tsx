@@ -89,11 +89,15 @@ export function DashboardClient({ workspaces }: Props) {
 
       <div className="grid gap-4 md:grid-cols-5">
         <div className="card">
-          <p className="text-sm text-slate-600">This month</p>
+          <p className="text-sm text-slate-600">
+            {summary?.connectionMode === "PERSONAL" ? "This month (est.)" : "This month"}
+          </p>
           <p className="text-2xl font-semibold">{summary ? `${summary.monthCost.toFixed(2)} ${summary.currency}` : "-"}</p>
         </div>
         <div className="card">
-          <p className="text-sm text-slate-600">Today</p>
+          <p className="text-sm text-slate-600">
+            {summary?.connectionMode === "PERSONAL" ? "Today (est.)" : "Today"}
+          </p>
           <p className="text-2xl font-semibold">{summary ? `${summary.todayCost.toFixed(2)} ${summary.currency}` : "-"}</p>
         </div>
         <div className="card">
@@ -129,6 +133,9 @@ export function DashboardClient({ workspaces }: Props) {
             Credits used/granted: {summary.creditTotalUsed?.toFixed(2)} / {summary.creditTotalGranted.toFixed(2)}{" "}
             {(summary.creditCurrency ?? "usd").toLowerCase()}
           </p>
+        ) : null}
+        {summary?.connectionMode === "PERSONAL" ? (
+          <p className="mt-1 text-slate-500">Month/Today values are estimated from credit usage deltas.</p>
         ) : null}
         {summary?.lastError ? <p className="mt-1 text-red-600">Last error: {summary.lastError}</p> : null}
       </div>

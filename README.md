@@ -12,6 +12,7 @@ TokenBoard is a Next.js + Postgres + Prisma web MVP for viewing OpenAI costs/usa
   - `GET /v1/organization/usage/completions`
 - Personal credit sync from:
   - `GET /v1/dashboard/billing/credit_grants`
+  - Dashboard month/today values are estimated from personal credit usage deltas
 - Dashboard summary + trend chart + breakdown + settings
 - Monthly budget (remaining budget calculation)
 - Cron sync endpoint protected by `CRON_SECRET`
