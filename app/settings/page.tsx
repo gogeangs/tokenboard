@@ -15,7 +15,10 @@ export default async function SettingsPage() {
           displayName: true,
           connection: {
             select: {
-              mode: true
+              mode: true,
+              status: true,
+              updatedAt: true,
+              lastSyncAt: true
             }
           }
         }
@@ -29,7 +32,10 @@ export default async function SettingsPage() {
     displayName: m.workspace.displayName,
     role: m.role,
     openAIConfigured: Boolean(m.workspace.connection),
-    openAIMode: m.workspace.connection?.mode ?? null
+    openAIMode: m.workspace.connection?.mode ?? null,
+    openAIStatus: m.workspace.connection?.status ?? null,
+    openAIUpdatedAt: m.workspace.connection?.updatedAt?.toISOString() ?? null,
+    openAILastSyncAt: m.workspace.connection?.lastSyncAt?.toISOString() ?? null
   }));
 
   return <SettingsClient workspaces={workspaces} />;

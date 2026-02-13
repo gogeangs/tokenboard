@@ -11,6 +11,10 @@ export const connectOpenAISchema = z.object({
   mode: z.enum(["organization", "personal"]).default("organization")
 });
 
+export const syncWorkspaceSchema = z.object({
+  workspaceId: z.string().min(1)
+});
+
 export const budgetSchema = z.object({
   workspaceId: z.string().min(1),
   month: z.string().regex(/^\d{4}-\d{2}$/),

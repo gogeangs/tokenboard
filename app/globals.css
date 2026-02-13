@@ -25,3 +25,23 @@ body {
 .btn-secondary {
   @apply rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100;
 }
+
+.badge {
+  @apply inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold;
+}
+
+.badge-ok {
+  @apply bg-emerald-100 text-emerald-700;
+}
+
+.badge-warn {
+  @apply bg-amber-100 text-amber-700;
+}
+
+.badge-muted {
+  @apply bg-slate-100 text-slate-600;
+}
+
+.skeleton {
+  @apply animate-pulse rounded bg-slate-200;
+}

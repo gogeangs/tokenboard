@@ -45,12 +45,15 @@ export function SettingsClient({ workspaces }: Props) {
           ? {
               ...workspace,
               openAIConfigured: true,
-              openAIMode: mode === "personal" ? "PERSONAL" : "ORGANIZATION"
+              openAIMode: mode === "personal" ? "PERSONAL" : "ORGANIZATION",
+              openAIStatus: "DISCONNECTED",
+              openAIUpdatedAt: new Date().toISOString(),
+              openAILastSyncAt: null
             }
           : workspace
       )
     );
-    setMessage(`${mode === "personal" ? "Personal" : "Organization"} OpenAI key saved. Sync queued.`);
+    setMessage(`${mode === "personal" ? "Personal" : "Organization"} key saved. Sync pending.`);
   }
 
   async function saveBudget(e: FormEvent) {
@@ -73,9 +76,18 @@ export function SettingsClient({ workspaces }: Props) {
     setMessage("Budget saved.");
   }
 
+  const statusText =
+    selectedWorkspace?.openAIStatus === "OK"
+      ? "Saved"
+      : selectedWorkspace?.openAIStatus === "DEGRADED"
+        ? "Saved (degraded)"
+        : selectedWorkspace?.openAIConfigured
+          ? "Sync pending"
+          : "Not configured";
+
   return (
     <div className="space-y-4">
-      <div className="card flex items-center justify-between">
+      <div className="card flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h1 className="text-lg font-semibold">Settings</h1>
         <select className="input max-w-xs" value={workspaceId} onChange={(e) => setWorkspaceId(e.target.value)}>
           {workspaceState.map((workspace) => (
@@ -90,20 +102,31 @@ export function SettingsClient({ workspaces }: Props) {
 
       <form className="card space-y-3" onSubmit={connectOpenAI}>
         <h2 className="text-base font-semibold">OpenAI Connection</h2>
-        <p className="text-sm text-slate-600">Choose mode and save a key for personal credits or organization usage/cost sync.</p>
-        <p className="text-sm text-slate-700">
-          {selectedWorkspace?.openAIConfigured
-            ? `Key is already configured (${(selectedWorkspace.openAIMode ?? "ORGANIZATION").toLowerCase()}). Save again to replace it.`
-            : "No key saved for this workspace yet."}
+        <p className="text-sm text-slate-600">Status: {statusText}</p>
+        <p className="text-sm text-slate-600">
+          Last updated: {selectedWorkspace?.openAIUpdatedAt ? new Date(selectedWorkspace.openAIUpdatedAt).toLocaleString() : "Never"}
         </p>
-        <select
-          className="input"
-          value={mode}
-          onChange={(e) => setMode(e.target.value as "organization" | "personal")}
-        >
-          <option value="organization">Organization (Admin API Key)</option>
-          <option value="personal">Personal (Personal API Key)</option>
-        </select>
+        <p className="text-sm text-slate-600">
+          Last sync: {selectedWorkspace?.openAILastSyncAt ? new Date(selectedWorkspace.openAILastSyncAt).toLocaleString() : "Never"}
+        </p>
+
+        <div className="grid gap-2 md:grid-cols-2">
+          <button
+            type="button"
+            className={mode === "organization" ? "btn" : "btn-secondary"}
+            onClick={() => setMode("organization")}
+          >
+            Organization Key
+          </button>
+          <button
+            type="button"
+            className={mode === "personal" ? "btn" : "btn-secondary"}
+            onClick={() => setMode("personal")}
+          >
+            Personal Key
+          </button>
+        </div>
+
         <input
           className="input"
           type="password"
@@ -113,7 +136,7 @@ export function SettingsClient({ workspaces }: Props) {
           required
         />
         <button className="btn" type="submit">
-          Save OpenAI Key
+          {mode === "personal" ? "Save Personal Key" : "Save Organization Key"}
         </button>
       </form>
 

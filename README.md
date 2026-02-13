@@ -92,6 +92,8 @@ docker compose down
 - `GET /api/workspaces`
 - `POST /api/openai/connect`
   - body: `{ workspaceId, apiKey, mode: "organization" | "personal" }`
+- `POST /api/openai/sync`
+  - body: `{ workspaceId }` (owner only, manual sync)
 - `POST /api/budgets`
 - `GET /api/summary?workspaceId=&month=YYYY-MM`
 - `GET /api/trend?workspaceId=&from=&to=` (`from/to` ISO datetime)

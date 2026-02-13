@@ -19,7 +19,8 @@ export async function GET() {
               mode: true,
               status: true,
               lastSyncAt: true,
-              lastError: true
+              lastError: true,
+              updatedAt: true
             }
           }
         }

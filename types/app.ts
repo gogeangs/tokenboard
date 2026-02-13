@@ -5,4 +5,7 @@ export type WorkspaceOption = {
   role: string;
   openAIConfigured?: boolean;
   openAIMode?: "ORGANIZATION" | "PERSONAL" | null;
+  openAIStatus?: "OK" | "DEGRADED" | "DISCONNECTED" | null;
+  openAIUpdatedAt?: string | null;
+  openAILastSyncAt?: string | null;
 };
