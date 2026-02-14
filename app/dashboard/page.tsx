@@ -12,7 +12,22 @@ export default async function DashboardPage() {
         select: {
           id: true,
           slug: true,
-          displayName: true
+          displayName: true,
+          connection: {
+            select: {
+              mode: true,
+              status: true,
+              updatedAt: true,
+              lastSyncAt: true
+            }
+          },
+          anthropicConnection: {
+            select: {
+              status: true,
+              updatedAt: true,
+              lastSyncAt: true
+            }
+          }
         }
       }
     },
@@ -23,7 +38,16 @@ export default async function DashboardPage() {
     id: m.workspace.id,
     slug: m.workspace.slug,
     displayName: m.workspace.displayName,
-    role: m.role
+    role: m.role,
+    openAIConfigured: Boolean(m.workspace.connection),
+    openAIMode: m.workspace.connection?.mode ?? null,
+    openAIStatus: m.workspace.connection?.status ?? null,
+    openAIUpdatedAt: m.workspace.connection?.updatedAt?.toISOString() ?? null,
+    openAILastSyncAt: m.workspace.connection?.lastSyncAt?.toISOString() ?? null,
+    anthropicConfigured: Boolean(m.workspace.anthropicConnection),
+    anthropicStatus: m.workspace.anthropicConnection?.status ?? null,
+    anthropicUpdatedAt: m.workspace.anthropicConnection?.updatedAt?.toISOString() ?? null,
+    anthropicLastSyncAt: m.workspace.anthropicConnection?.lastSyncAt?.toISOString() ?? null
   }));
 
   return <DashboardClient workspaces={workspaces} />;

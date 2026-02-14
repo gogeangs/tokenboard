@@ -8,4 +8,8 @@ export type WorkspaceOption = {
   openAIStatus?: "OK" | "DEGRADED" | "DISCONNECTED" | null;
   openAIUpdatedAt?: string | null;
   openAILastSyncAt?: string | null;
+  anthropicConfigured?: boolean;
+  anthropicStatus?: "OK" | "DEGRADED" | "DISCONNECTED" | null;
+  anthropicUpdatedAt?: string | null;
+  anthropicLastSyncAt?: string | null;
 };

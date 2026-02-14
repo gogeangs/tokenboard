@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { syncAllAnthropicWorkspaces } from "@/lib/anthropic-sync";
 import { getEnv } from "@/lib/env";
 import { fail, ok } from "@/lib/response";
 import { syncAllWorkspaces } from "@/lib/openai-sync";
@@ -14,8 +15,8 @@ export async function GET(req: NextRequest) {
     return fail("Unauthorized", 401);
   }
 
-  const result = await syncAllWorkspaces(30);
-  return ok({ success: true, ...result });
+  const [openAI, anthropic] = await Promise.all([syncAllWorkspaces(30), syncAllAnthropicWorkspaces(30)]);
+  return ok({ success: true, openAI, anthropic });
 }
 
 export async function POST(req: NextRequest) {

@@ -7,9 +7,13 @@ TokenBoard is a Next.js + Postgres + Prisma web MVP for viewing OpenAI costs/usa
 - Email/password auth (JWT in HTTPOnly cookie)
 - Workspace model with owner membership
 - OpenAI key storage with AES-256-GCM encryption (organization admin key or personal key)
+- Anthropic key storage with AES-256-GCM encryption (organization admin key)
 - OpenAI data sync from:
   - `GET /v1/organization/costs`
   - `GET /v1/organization/usage/completions`
+- Anthropic data sync from:
+  - `GET /v1/organizations/cost_report`
+  - `GET /v1/organizations/usage_report/messages`
 - Personal credit sync from:
   - `GET /v1/dashboard/billing/credit_grants`
   - Dashboard month/today values are estimated from personal credit usage deltas
@@ -92,6 +96,8 @@ docker compose down
 - `GET /api/workspaces`
 - `POST /api/openai/connect`
   - body: `{ workspaceId, apiKey, mode: "organization" | "personal" }`
+- `POST /api/anthropic/connect`
+  - body: `{ workspaceId, apiKey }`
 - `POST /api/openai/sync`
   - body: `{ workspaceId }` (owner only, manual sync)
 - `POST /api/budgets`

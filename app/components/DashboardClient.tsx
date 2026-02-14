@@ -118,10 +118,22 @@ export function DashboardClient({ workspaces }: Props) {
   return (
     <div className="space-y-4">
       <div className="card flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-lg font-semibold">Dashboard</h1>
           <span className={statusBadge(summary?.status)}>{summary?.status ?? "DISCONNECTED"}</span>
           <span className="badge badge-muted">{summary?.connectionMode ?? "-"}</span>
+          <span className={selectedWorkspace?.openAIConfigured ? statusBadge(selectedWorkspace.openAIStatus ?? "DISCONNECTED") : "badge badge-muted"}>
+            OpenAI {selectedWorkspace?.openAIConfigured ? selectedWorkspace.openAIStatus : "OFF"}
+          </span>
+          <span
+            className={
+              selectedWorkspace?.anthropicConfigured
+                ? statusBadge(selectedWorkspace.anthropicStatus ?? "DISCONNECTED")
+                : "badge badge-muted"
+            }
+          >
+            Anthropic {selectedWorkspace?.anthropicConfigured ? selectedWorkspace.anthropicStatus : "OFF"}
+          </span>
         </div>
         <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row">
           <select className="input md:w-72" value={workspaceId} onChange={(e) => setWorkspaceId(e.target.value)}>

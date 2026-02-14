@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   const { start, endExclusive } = monthRange(month);
   const today = startOfDayUtc(new Date());
 
-  const [monthCosts, todayCosts, budget, conn] = await Promise.all([
+  const [monthCosts, todayCosts, budget, openAIConn, anthropicConn] = await Promise.all([
     prisma.dailyCost.findMany({
       where: {
         workspaceId,
@@ -65,6 +65,14 @@ export async function GET(req: NextRequest) {
         creditTotalAvailable: true,
         creditCurrency: true
       }
+    }),
+    prisma.anthropicConnection.findUnique({
+      where: { workspaceId },
+      select: {
+        status: true,
+        lastSyncAt: true,
+        lastError: true
+      }
     })
   ]);
 
@@ -74,6 +82,19 @@ export async function GET(req: NextRequest) {
   const remaining = monthBudget === null ? null : Math.max(0, monthBudget - monthCost);
   const currency = (budget?.currency ?? monthCosts[0]?.currency ?? "usd").toLowerCase();
 
+  const statusCandidates = [openAIConn?.status, anthropicConn?.status].filter(Boolean);
+  const status = statusCandidates.includes("DEGRADED")
+    ? "DEGRADED"
+    : statusCandidates.includes("OK")
+      ? "OK"
+      : "DISCONNECTED";
+
+  const lastSyncAt = [openAIConn?.lastSyncAt, anthropicConn?.lastSyncAt]
+    .filter((item): item is Date => Boolean(item))
+    .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+
+  const lastError = openAIConn?.lastError ?? anthropicConn?.lastError ?? null;
+
   return ok({
     month: formatMonth(start),
     monthCost,
@@ -81,14 +102,20 @@ export async function GET(req: NextRequest) {
     monthBudget,
     remaining,
     currency,
-    connectionMode: conn?.mode ?? "ORGANIZATION",
-    lastSyncAt: conn?.lastSyncAt ?? null,
-    status: conn?.status ?? "DISCONNECTED",
-    lastError: conn?.lastError ?? null,
-    creditTotalGranted: conn?.creditTotalGranted !== null && conn?.creditTotalGranted !== undefined ? Number(conn.creditTotalGranted) : null,
-    creditTotalUsed: conn?.creditTotalUsed !== null && conn?.creditTotalUsed !== undefined ? Number(conn.creditTotalUsed) : null,
+    connectionMode: openAIConn?.mode ?? "ORGANIZATION",
+    lastSyncAt,
+    status,
+    lastError,
+    creditTotalGranted:
+      openAIConn?.creditTotalGranted !== null && openAIConn?.creditTotalGranted !== undefined
+        ? Number(openAIConn.creditTotalGranted)
+        : null,
+    creditTotalUsed:
+      openAIConn?.creditTotalUsed !== null && openAIConn?.creditTotalUsed !== undefined ? Number(openAIConn.creditTotalUsed) : null,
     creditTotalAvailable:
-      conn?.creditTotalAvailable !== null && conn?.creditTotalAvailable !== undefined ? Number(conn.creditTotalAvailable) : null,
-    creditCurrency: conn?.creditCurrency ?? null
+      openAIConn?.creditTotalAvailable !== null && openAIConn?.creditTotalAvailable !== undefined
+        ? Number(openAIConn.creditTotalAvailable)
+        : null,
+    creditCurrency: openAIConn?.creditCurrency ?? null
   });
 }

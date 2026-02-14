@@ -38,6 +38,7 @@ model Workspace {
   createdAt    DateTime          @default(now())
   memberships  WorkspaceMember[]
   connection   OpenAIConnection?
+  anthropicConnection AnthropicConnection?
   dailyCosts   DailyCost[]
   dailyUsage   DailyUsageCompletions[]
   budgets      Budget[]
@@ -70,6 +71,18 @@ model OpenAIConnection {
   updatedAt            DateTime             @updatedAt
 
   workspace            Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model AnthropicConnection {
+  workspaceId  String           @id
+  adminKeyEnc  String
+  status       ConnectionStatus @default(DISCONNECTED)
+  lastSyncAt   DateTime?
+  lastError    String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  workspace    Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model DailyCost {

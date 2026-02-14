@@ -20,6 +20,13 @@ export default async function SettingsPage() {
               updatedAt: true,
               lastSyncAt: true
             }
+          },
+          anthropicConnection: {
+            select: {
+              status: true,
+              updatedAt: true,
+              lastSyncAt: true
+            }
           }
         }
       }
@@ -35,7 +42,11 @@ export default async function SettingsPage() {
     openAIMode: m.workspace.connection?.mode ?? null,
     openAIStatus: m.workspace.connection?.status ?? null,
     openAIUpdatedAt: m.workspace.connection?.updatedAt?.toISOString() ?? null,
-    openAILastSyncAt: m.workspace.connection?.lastSyncAt?.toISOString() ?? null
+    openAILastSyncAt: m.workspace.connection?.lastSyncAt?.toISOString() ?? null,
+    anthropicConfigured: Boolean(m.workspace.anthropicConnection),
+    anthropicStatus: m.workspace.anthropicConnection?.status ?? null,
+    anthropicUpdatedAt: m.workspace.anthropicConnection?.updatedAt?.toISOString() ?? null,
+    anthropicLastSyncAt: m.workspace.anthropicConnection?.lastSyncAt?.toISOString() ?? null
   }));
 
   return <SettingsClient workspaces={workspaces} />;

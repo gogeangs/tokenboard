@@ -11,6 +11,11 @@ export const connectOpenAISchema = z.object({
   mode: z.enum(["organization", "personal"]).default("organization")
 });
 
+export const connectAnthropicSchema = z.object({
+  workspaceId: z.string().min(1),
+  apiKey: z.string().min(20)
+});
+
 export const syncWorkspaceSchema = z.object({
   workspaceId: z.string().min(1)
 });

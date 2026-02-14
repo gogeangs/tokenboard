@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/auth";
+import { syncWorkspaceAnthropic } from "@/lib/anthropic-sync";
 import { internalErrorLog } from "@/lib/errors";
 import { syncWorkspaceOpenAI } from "@/lib/openai-sync";
 import { fail, ok } from "@/lib/response";
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
     const owner = await assertWorkspaceOwner(user.id, workspaceId);
     if (!owner) return fail("Forbidden", 403);
 
-    await syncWorkspaceOpenAI(workspaceId, 30);
+    await Promise.all([syncWorkspaceOpenAI(workspaceId, 30), syncWorkspaceAnthropic(workspaceId, 30)]);
     return ok({ success: true });
   } catch (error) {
     internalErrorLog("openai.sync.manual", error);

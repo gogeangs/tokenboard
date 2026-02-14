@@ -11,6 +11,7 @@ export function SettingsClient({ workspaces }: Props) {
   const [workspaceState, setWorkspaceState] = useState(workspaces);
   const [workspaceId, setWorkspaceId] = useState(workspaces[0]?.id ?? "");
   const [apiKey, setApiKey] = useState("");
+  const [anthropicKey, setAnthropicKey] = useState("");
   const [mode, setMode] = useState<"organization" | "personal">("organization");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("usd");
@@ -76,12 +77,48 @@ export function SettingsClient({ workspaces }: Props) {
     setMessage("Budget saved.");
   }
 
+  async function connectAnthropic(e: FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    const res = await fetch("/api/anthropic/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceId, apiKey: anthropicKey })
+    });
+    const data = await res.json();
+    if (!res.ok) return setMessage(data.error ?? "Anthropic connect failed");
+    setAnthropicKey("");
+    setWorkspaceState((prev) =>
+      prev.map((workspace) =>
+        workspace.id === workspaceId
+          ? {
+              ...workspace,
+              anthropicConfigured: true,
+              anthropicStatus: "DISCONNECTED",
+              anthropicUpdatedAt: new Date().toISOString(),
+              anthropicLastSyncAt: null
+            }
+          : workspace
+      )
+    );
+    setMessage("Anthropic key saved. Sync pending.");
+  }
+
   const statusText =
     selectedWorkspace?.openAIStatus === "OK"
       ? "Saved"
       : selectedWorkspace?.openAIStatus === "DEGRADED"
         ? "Saved (degraded)"
         : selectedWorkspace?.openAIConfigured
+          ? "Sync pending"
+          : "Not configured";
+
+  const anthropicStatusText =
+    selectedWorkspace?.anthropicStatus === "OK"
+      ? "Saved"
+      : selectedWorkspace?.anthropicStatus === "DEGRADED"
+        ? "Saved (degraded)"
+        : selectedWorkspace?.anthropicConfigured
           ? "Sync pending"
           : "Not configured";
 
@@ -137,6 +174,30 @@ export function SettingsClient({ workspaces }: Props) {
         />
         <button className="btn" type="submit">
           {mode === "personal" ? "Save Personal Key" : "Save Organization Key"}
+        </button>
+      </form>
+
+      <form className="card space-y-3" onSubmit={connectAnthropic}>
+        <h2 className="text-base font-semibold">Anthropic Connection</h2>
+        <p className="text-sm text-slate-600">Status: {anthropicStatusText}</p>
+        <p className="text-sm text-slate-600">
+          Last updated:{" "}
+          {selectedWorkspace?.anthropicUpdatedAt ? new Date(selectedWorkspace.anthropicUpdatedAt).toLocaleString() : "Never"}
+        </p>
+        <p className="text-sm text-slate-600">
+          Last sync:{" "}
+          {selectedWorkspace?.anthropicLastSyncAt ? new Date(selectedWorkspace.anthropicLastSyncAt).toLocaleString() : "Never"}
+        </p>
+        <input
+          className="input"
+          type="password"
+          value={anthropicKey}
+          onChange={(e) => setAnthropicKey(e.target.value)}
+          placeholder="sk-ant-api..."
+          required
+        />
+        <button className="btn" type="submit">
+          Save Anthropic Key
         </button>
       </form>
 

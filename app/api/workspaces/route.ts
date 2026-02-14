@@ -22,6 +22,14 @@ export async function GET() {
               lastError: true,
               updatedAt: true
             }
+          },
+          anthropicConnection: {
+            select: {
+              status: true,
+              lastSyncAt: true,
+              lastError: true,
+              updatedAt: true
+            }
           }
         }
       }
@@ -34,7 +42,8 @@ export async function GET() {
       slug: m.workspace.slug,
       displayName: m.workspace.displayName,
       role: m.role,
-      connection: m.workspace.connection
+      connection: m.workspace.connection,
+      anthropicConnection: m.workspace.anthropicConnection
     }))
   });
 }
