@@ -12,6 +12,7 @@
     "prisma:dev": "prisma migrate dev"
   },
   "dependencies": {
+    "@aws-sdk/client-cost-explorer": "^3.993.0",
     "@prisma/client": "^6.3.1",
     "bcryptjs": "^2.4.3",
     "jose": "^5.9.6",

@@ -25,6 +25,15 @@ type TrendResponse = {
   trend: Array<{ date: string; value: number }>;
 };
 
+type ForecastResponse = {
+  predictedMonthEnd: number;
+  dailyForecasts: Array<{ date: string; value: number }>;
+  budgetExhaustionDate: string | null;
+  currentSpend: number;
+  daysElapsed: number;
+  daysRemaining: number;
+};
+
 type Props = {
   workspaces: WorkspaceOption[];
 };
@@ -49,11 +58,12 @@ export function DashboardClient({ workspaces }: Props) {
   const [workspaceId, setWorkspaceId] = useState(workspaces[0]?.id ?? "");
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [trend, setTrend] = useState<Array<{ date: string; value: number }> | null>(null);
+  const [forecast, setForecast] = useState<ForecastResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
   const selectedWorkspace = workspaces.find((workspace) => workspace.id === workspaceId);
-  const isOwner = selectedWorkspace?.role === "OWNER";
+  const canSync = selectedWorkspace?.role === "OWNER" || selectedWorkspace?.role === "ADMIN";
 
   const month = useMemo(() => {
     const now = new Date();
@@ -70,9 +80,14 @@ export function DashboardClient({ workspaces }: Props) {
     setTrend(null);
 
     try {
-      const [summaryRes, trendRes] = await Promise.all([
-        fetch(`/api/summary?workspaceId=${workspaceId}&month=${month}`),
-        fetch(`/api/trend?workspaceId=${workspaceId}&from=${from.toISOString()}&to=${to.toISOString()}`)
+      const summaryParams = new URLSearchParams({ workspaceId, month });
+      const trendParams = new URLSearchParams({ workspaceId, from: from.toISOString(), to: to.toISOString() });
+      const forecastParams = new URLSearchParams({ workspaceId, month });
+
+      const [summaryRes, trendRes, forecastRes] = await Promise.all([
+        fetch(`/api/summary?${summaryParams}`),
+        fetch(`/api/trend?${trendParams}`),
+        fetch(`/api/forecast?${forecastParams}`)
       ]);
 
       if (!summaryRes.ok || !trendRes.ok) {
@@ -84,6 +99,11 @@ export function DashboardClient({ workspaces }: Props) {
       const trendJson: TrendResponse = await trendRes.json();
       setSummary(summaryJson);
       setTrend(trendJson.trend);
+
+      if (forecastRes.ok) {
+        const forecastJson: ForecastResponse = await forecastRes.json();
+        setForecast(forecastJson);
+      }
     } catch {
       setError("Failed to load dashboard");
     }
@@ -94,7 +114,7 @@ export function DashboardClient({ workspaces }: Props) {
   }, [workspaceId, month]);
 
   async function syncNow() {
-    if (!workspaceId || !isOwner) return;
+    if (!workspaceId || !canSync) return;
     setSyncing(true);
     setError(null);
 
@@ -143,6 +163,24 @@ export function DashboardClient({ workspaces }: Props) {
           >
             Anthropic {selectedWorkspace?.anthropicConfigured ? selectedWorkspace.anthropicStatus : "OFF"}
           </span>
+          <span
+            className={
+              selectedWorkspace?.vertexConfigured
+                ? statusBadge(selectedWorkspace.vertexStatus ?? "DISCONNECTED")
+                : "badge badge-muted"
+            }
+          >
+            Vertex AI {selectedWorkspace?.vertexConfigured ? selectedWorkspace.vertexStatus : "OFF"}
+          </span>
+          <span
+            className={
+              selectedWorkspace?.bedrockConfigured
+                ? statusBadge(selectedWorkspace.bedrockStatus ?? "DISCONNECTED")
+                : "badge badge-muted"
+            }
+          >
+            Bedrock {selectedWorkspace?.bedrockConfigured ? selectedWorkspace.bedrockStatus : "OFF"}
+          </span>
         </div>
         <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row">
           <select aria-label="Workspace" className="input md:w-72" value={workspaceId} onChange={(e) => setWorkspaceId(e.target.value)}>
@@ -152,7 +190,7 @@ export function DashboardClient({ workspaces }: Props) {
               </option>
             ))}
           </select>
-          {isOwner ? (
+          {canSync ? (
             <button className="btn" type="button" onClick={syncNow} disabled={syncing}>
               {syncing ? "Syncing..." : "Sync Now"}
             </button>
@@ -219,13 +257,38 @@ export function DashboardClient({ workspaces }: Props) {
             <div className="skeleton h-8 w-9/12" />
           </div>
         ) : trend.length ? (
-          <TrendChart data={trend} />
+          <TrendChart data={trend} forecast={forecast?.dailyForecasts} budgetLine={summary?.monthBudget} />
         ) : (
           <p className="text-sm text-slate-500">
             No synced data yet. Save an API key in settings, then run Sync Now.
           </p>
         )}
       </div>
+
+      {forecast ? (
+        <div className="grid gap-4 grid-cols-2">
+          <div className="card">
+            <p className="text-sm text-slate-600">Predicted month-end</p>
+            <p className="text-2xl font-semibold">
+              ${forecast.predictedMonthEnd.toFixed(2)}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              {forecast.daysElapsed}d elapsed / {forecast.daysRemaining}d remaining
+            </p>
+          </div>
+          <div className="card">
+            <p className="text-sm text-slate-600">Budget exhaustion</p>
+            <p className="text-2xl font-semibold">
+              {forecast.budgetExhaustionDate ?? "N/A"}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              {forecast.budgetExhaustionDate
+                ? `Estimated date budget runs out`
+                : "No budget set or no trend data"}
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="card text-sm text-slate-700">
         <p>Connection mode: {summary?.connectionMode ?? "-"}</p>

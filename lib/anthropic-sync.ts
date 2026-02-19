@@ -1,4 +1,5 @@
 import { ConnectionStatus } from "@prisma/client";
+import { evaluateBudgetAlerts, evaluateConnectionAlerts, evaluateCostSpikeAlerts } from "@/lib/alerts";
 import { decryptSecret } from "@/lib/crypto";
 import { prisma } from "@/lib/db";
 import { internalErrorLog } from "@/lib/errors";
@@ -144,6 +145,7 @@ export async function syncWorkspaceAnthropic(workspaceId: string, days = 30): Pr
   const connection = await prisma.anthropicConnection.findUnique({ where: { workspaceId } });
   if (!connection) return;
 
+  const previousStatus = connection.status;
   let apiKey = "";
   try {
     apiKey = decryptSecret(connection.adminKeyEnc);
@@ -261,15 +263,30 @@ export async function syncWorkspaceAnthropic(workspaceId: string, days = 30): Pr
         }
       });
     });
+
+    await Promise.all([
+      evaluateBudgetAlerts(workspaceId),
+      evaluateCostSpikeAlerts(workspaceId)
+    ]).catch((e) => internalErrorLog("anthropic.alerts", e));
+
+    if (previousStatus !== ConnectionStatus.OK) {
+      await evaluateConnectionAlerts(workspaceId, "Anthropic", previousStatus, ConnectionStatus.OK)
+        .catch((e) => internalErrorLog("anthropic.connAlert", e));
+    }
   } catch (error) {
+    const newStatus = ConnectionStatus.DEGRADED;
     await prisma.anthropicConnection.update({
       where: { workspaceId },
       data: {
-        status: ConnectionStatus.DEGRADED,
+        status: newStatus,
         lastError: error instanceof Error ? error.message.slice(0, 400) : "Anthropic sync failed",
         lastSyncAt: new Date()
       }
     });
+    if (previousStatus !== newStatus) {
+      await evaluateConnectionAlerts(workspaceId, "Anthropic", previousStatus, newStatus)
+        .catch((e) => internalErrorLog("anthropic.connAlert", e));
+    }
     internalErrorLog("anthropic.sync", error);
   }
 }

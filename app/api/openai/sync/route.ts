@@ -1,11 +1,13 @@
 import { NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { syncWorkspaceAnthropic } from "@/lib/anthropic-sync";
+import { syncWorkspaceBedrock } from "@/lib/bedrock-sync";
 import { internalErrorLog } from "@/lib/errors";
 import { syncWorkspaceOpenAI } from "@/lib/openai-sync";
 import { fail, ok } from "@/lib/response";
 import { syncWorkspaceSchema } from "@/lib/validators";
-import { getWorkspaceOwner } from "@/lib/workspace";
+import { syncWorkspaceVertex } from "@/lib/vertex-sync";
+import { getWorkspaceAdmin } from "@/lib/workspace";
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
@@ -18,10 +20,15 @@ export async function POST(req: NextRequest) {
     }
 
     const { workspaceId } = parsed.data;
-    const owner = await getWorkspaceOwner(user.id, workspaceId);
-    if (!owner) return fail("Forbidden", 403);
+    const admin = await getWorkspaceAdmin(user.id, workspaceId);
+    if (!admin) return fail("Forbidden", 403);
 
-    await Promise.all([syncWorkspaceOpenAI(workspaceId, 30), syncWorkspaceAnthropic(workspaceId, 30)]);
+    await Promise.all([
+      syncWorkspaceOpenAI(workspaceId, 30),
+      syncWorkspaceAnthropic(workspaceId, 30),
+      syncWorkspaceVertex(workspaceId, 30),
+      syncWorkspaceBedrock(workspaceId, 30)
+    ]);
     return ok({ success: true });
   } catch (error) {
     internalErrorLog("openai.sync.manual", error);

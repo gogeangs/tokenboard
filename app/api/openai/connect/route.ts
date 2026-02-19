@@ -6,13 +6,12 @@ import { prisma } from "@/lib/db";
 import { internalErrorLog } from "@/lib/errors";
 import { fail, ok } from "@/lib/response";
 import { connectOpenAISchema } from "@/lib/validators";
-import { getWorkspaceOwner } from "@/lib/workspace";
+import { getWorkspaceAdmin } from "@/lib/workspace";
 
 export async function POST(req: NextRequest) {
-  const user = await getSessionUser();
-  if (!user) return fail("Unauthorized", 401);
-
   try {
+    const user = await getSessionUser();
+    if (!user) return fail("Unauthorized", 401);
     const json = await req.json();
     const parsed = connectOpenAISchema.safeParse(json);
     if (!parsed.success) {
@@ -20,8 +19,8 @@ export async function POST(req: NextRequest) {
     }
 
     const { workspaceId, apiKey, mode } = parsed.data;
-    const owner = await getWorkspaceOwner(user.id, workspaceId);
-    if (!owner) {
+    const admin = await getWorkspaceAdmin(user.id, workspaceId);
+    if (!admin) {
       return fail("Forbidden", 403);
     }
 

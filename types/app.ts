@@ -2,7 +2,7 @@ export type WorkspaceOption = {
   id: string;
   displayName: string;
   slug: string;
-  role: "OWNER" | "MEMBER";
+  role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
   openAIConfigured?: boolean;
   openAIMode?: "ORGANIZATION" | "PERSONAL" | null;
   openAIStatus?: "OK" | "DEGRADED" | "DISCONNECTED" | null;
@@ -12,4 +12,12 @@ export type WorkspaceOption = {
   anthropicStatus?: "OK" | "DEGRADED" | "DISCONNECTED" | null;
   anthropicUpdatedAt?: string | null;
   anthropicLastSyncAt?: string | null;
+  vertexConfigured?: boolean;
+  vertexStatus?: "OK" | "DEGRADED" | "DISCONNECTED" | null;
+  vertexUpdatedAt?: string | null;
+  vertexLastSyncAt?: string | null;
+  bedrockConfigured?: boolean;
+  bedrockStatus?: "OK" | "DEGRADED" | "DISCONNECTED" | null;
+  bedrockUpdatedAt?: string | null;
+  bedrockLastSyncAt?: string | null;
 };

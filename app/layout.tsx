@@ -2,6 +2,7 @@ import "./globals.css";
 import Link from "next/link";
 import { getSessionUser } from "@/lib/auth";
 import { LogoutButton } from "@/app/components/LogoutButton";
+import { NotificationBell } from "@/app/components/NotificationBell";
 
 export const metadata = {
   title: "TokenBoard",
@@ -26,6 +27,10 @@ export default async function RootLayout({
                 <>
                   <Link href="/dashboard">Dashboard</Link>
                   <Link href="/breakdown">Breakdown</Link>
+                  <Link href="/analytics">Analytics</Link>
+                  <Link href="/members">Members</Link>
+                  <Link href="/alerts">Alerts</Link>
+                  <NotificationBell />
                   <Link href="/settings">Settings</Link>
                   <LogoutButton />
                 </>

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { internalErrorLog } from "@/lib/errors";
 import { fail, ok } from "@/lib/response";
 import { budgetSchema } from "@/lib/validators";
-import { getWorkspaceOwner } from "@/lib/workspace";
+import { getWorkspaceAdmin } from "@/lib/workspace";
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,8 +17,8 @@ export async function POST(req: NextRequest) {
     }
 
     const { workspaceId, month, amount, currency } = parsed.data;
-    const owner = await getWorkspaceOwner(user.id, workspaceId);
-    if (!owner) return fail("Forbidden", 403);
+    const admin = await getWorkspaceAdmin(user.id, workspaceId);
+    if (!admin) return fail("Forbidden", 403);
 
     const budget = await prisma.budget.upsert({
       where: {

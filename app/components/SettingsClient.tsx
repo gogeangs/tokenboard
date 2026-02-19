@@ -13,6 +13,12 @@ export function SettingsClient({ workspaces }: Props) {
   const [apiKey, setApiKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
   const [mode, setMode] = useState<"organization" | "personal">("organization");
+  const [vertexJson, setVertexJson] = useState("");
+  const [vertexProjectId, setVertexProjectId] = useState("");
+  const [vertexRegion, setVertexRegion] = useState("us-central1");
+  const [bedrockAccessKey, setBedrockAccessKey] = useState("");
+  const [bedrockSecretKey, setBedrockSecretKey] = useState("");
+  const [bedrockRegion, setBedrockRegion] = useState("us-east-1");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("usd");
   const [message, setMessage] = useState<string | null>(null);
@@ -146,6 +152,97 @@ export function SettingsClient({ workspaces }: Props) {
     }
   }
 
+  async function connectVertex(e: FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    setSaving(true);
+    try {
+      const res = await fetch("/api/vertex/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspaceId,
+          serviceAccountJson: vertexJson,
+          projectId: vertexProjectId,
+          region: vertexRegion
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessageType("error");
+        setMessage(data.error ?? "Vertex AI connect failed");
+        return;
+      }
+      setVertexJson("");
+      setWorkspaceState((prev) =>
+        prev.map((workspace) =>
+          workspace.id === workspaceId
+            ? {
+                ...workspace,
+                vertexConfigured: true,
+                vertexStatus: "DISCONNECTED",
+                vertexUpdatedAt: new Date().toISOString(),
+                vertexLastSyncAt: null
+              }
+            : workspace
+        )
+      );
+      setMessageType("success");
+      setMessage("Vertex AI credentials saved. Sync pending.");
+    } catch {
+      setMessageType("error");
+      setMessage("Vertex AI connect failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function connectBedrock(e: FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    setSaving(true);
+    try {
+      const res = await fetch("/api/bedrock/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspaceId,
+          accessKeyId: bedrockAccessKey,
+          secretAccessKey: bedrockSecretKey,
+          region: bedrockRegion
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessageType("error");
+        setMessage(data.error ?? "Bedrock connect failed");
+        return;
+      }
+      setBedrockAccessKey("");
+      setBedrockSecretKey("");
+      setWorkspaceState((prev) =>
+        prev.map((workspace) =>
+          workspace.id === workspaceId
+            ? {
+                ...workspace,
+                bedrockConfigured: true,
+                bedrockStatus: "DISCONNECTED",
+                bedrockUpdatedAt: new Date().toISOString(),
+                bedrockLastSyncAt: null
+              }
+            : workspace
+        )
+      );
+      setMessageType("success");
+      setMessage("Bedrock credentials saved. Sync pending.");
+    } catch {
+      setMessageType("error");
+      setMessage("Bedrock connect failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const statusText =
     selectedWorkspace?.openAIStatus === "OK"
       ? "Saved"
@@ -161,6 +258,24 @@ export function SettingsClient({ workspaces }: Props) {
       : selectedWorkspace?.anthropicStatus === "DEGRADED"
         ? "Saved (degraded)"
         : selectedWorkspace?.anthropicConfigured
+          ? "Sync pending"
+          : "Not configured";
+
+  const vertexStatusText =
+    selectedWorkspace?.vertexStatus === "OK"
+      ? "Saved"
+      : selectedWorkspace?.vertexStatus === "DEGRADED"
+        ? "Saved (degraded)"
+        : selectedWorkspace?.vertexConfigured
+          ? "Sync pending"
+          : "Not configured";
+
+  const bedrockStatusText =
+    selectedWorkspace?.bedrockStatus === "OK"
+      ? "Saved"
+      : selectedWorkspace?.bedrockStatus === "DEGRADED"
+        ? "Saved (degraded)"
+        : selectedWorkspace?.bedrockConfigured
           ? "Sync pending"
           : "Not configured";
 
@@ -252,6 +367,96 @@ export function SettingsClient({ workspaces }: Props) {
         />
         <button className="btn" type="submit" disabled={saving}>
           Save Anthropic Key
+        </button>
+      </form>
+
+      <form className="card space-y-3" onSubmit={connectVertex}>
+        <h2 className="text-base font-semibold">Google Vertex AI Connection</h2>
+        <p className="text-sm text-slate-600">Status: {vertexStatusText}</p>
+        <p className="text-sm text-slate-600">
+          Last updated:{" "}
+          {selectedWorkspace?.vertexUpdatedAt ? new Date(selectedWorkspace.vertexUpdatedAt).toLocaleString() : "Never"}
+        </p>
+        <p className="text-sm text-slate-600">
+          Last sync:{" "}
+          {selectedWorkspace?.vertexLastSyncAt ? new Date(selectedWorkspace.vertexLastSyncAt).toLocaleString() : "Never"}
+        </p>
+        <textarea
+          aria-label="Service Account JSON"
+          className="input min-h-[80px]"
+          value={vertexJson}
+          onChange={(e) => setVertexJson(e.target.value)}
+          placeholder='{"type":"service_account","project_id":"...","private_key":"...",...}'
+          required
+        />
+        <input
+          aria-label="GCP Billing Account / Project ID"
+          className="input"
+          value={vertexProjectId}
+          onChange={(e) => setVertexProjectId(e.target.value)}
+          placeholder="billing-account-id or project-id"
+          required
+        />
+        <select
+          aria-label="Vertex AI region"
+          className="input"
+          value={vertexRegion}
+          onChange={(e) => setVertexRegion(e.target.value)}
+        >
+          <option value="us-central1">us-central1</option>
+          <option value="us-east4">us-east4</option>
+          <option value="us-west1">us-west1</option>
+          <option value="europe-west4">europe-west4</option>
+          <option value="asia-northeast1">asia-northeast1</option>
+        </select>
+        <button className="btn" type="submit" disabled={saving}>
+          Save Vertex AI Credentials
+        </button>
+      </form>
+
+      <form className="card space-y-3" onSubmit={connectBedrock}>
+        <h2 className="text-base font-semibold">AWS Bedrock Connection</h2>
+        <p className="text-sm text-slate-600">Status: {bedrockStatusText}</p>
+        <p className="text-sm text-slate-600">
+          Last updated:{" "}
+          {selectedWorkspace?.bedrockUpdatedAt ? new Date(selectedWorkspace.bedrockUpdatedAt).toLocaleString() : "Never"}
+        </p>
+        <p className="text-sm text-slate-600">
+          Last sync:{" "}
+          {selectedWorkspace?.bedrockLastSyncAt ? new Date(selectedWorkspace.bedrockLastSyncAt).toLocaleString() : "Never"}
+        </p>
+        <input
+          aria-label="AWS Access Key ID"
+          className="input"
+          type="password"
+          value={bedrockAccessKey}
+          onChange={(e) => setBedrockAccessKey(e.target.value)}
+          placeholder="AKIA..."
+          required
+        />
+        <input
+          aria-label="AWS Secret Access Key"
+          className="input"
+          type="password"
+          value={bedrockSecretKey}
+          onChange={(e) => setBedrockSecretKey(e.target.value)}
+          placeholder="Secret access key"
+          required
+        />
+        <select
+          aria-label="AWS region"
+          className="input"
+          value={bedrockRegion}
+          onChange={(e) => setBedrockRegion(e.target.value)}
+        >
+          <option value="us-east-1">us-east-1</option>
+          <option value="us-west-2">us-west-2</option>
+          <option value="eu-west-1">eu-west-1</option>
+          <option value="ap-northeast-1">ap-northeast-1</option>
+          <option value="ap-southeast-1">ap-southeast-1</option>
+        </select>
+        <button className="btn" type="submit" disabled={saving}>
+          Save Bedrock Credentials
         </button>
       </form>
 

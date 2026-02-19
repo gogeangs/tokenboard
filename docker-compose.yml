@@ -21,7 +21,7 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/tokenboard?schema=public
       JWT_SECRET: replace-with-at-least-32-char-secret
-      ENCRYPTION_KEY: replace-with-base64-32-byte-key
+      ENCRYPTION_KEY: LCUAjq8Yhljbp476PyZDlAZXM00Nx4R/qbtbUN7fwJ8=
       CRON_SECRET: replace-with-random-cron-secret
       APP_URL: http://localhost:3000
       NODE_ENV: development

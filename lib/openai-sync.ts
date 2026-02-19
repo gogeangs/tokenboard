@@ -1,4 +1,5 @@
 import { ConnectionStatus, OpenAIConnectionMode } from "@prisma/client";
+import { evaluateBudgetAlerts, evaluateConnectionAlerts, evaluateCostSpikeAlerts } from "@/lib/alerts";
 import { decryptSecret } from "@/lib/crypto";
 import { prisma } from "@/lib/db";
 import { internalErrorLog } from "@/lib/errors";
@@ -358,6 +359,7 @@ export async function syncWorkspaceOpenAI(workspaceId: string, days = 30): Promi
   const connection = await prisma.openAIConnection.findUnique({ where: { workspaceId } });
   if (!connection) return;
 
+  const previousStatus = connection.status;
   let apiKey = "";
   try {
     apiKey = decryptSecret(connection.adminKeyEnc);
@@ -384,15 +386,30 @@ export async function syncWorkspaceOpenAI(workspaceId: string, days = 30): Promi
     }
 
     await syncOrganizationWorkspace(workspaceId, apiKey, days);
+
+    await Promise.all([
+      evaluateBudgetAlerts(workspaceId),
+      evaluateCostSpikeAlerts(workspaceId)
+    ]).catch((e) => internalErrorLog("openai.alerts", e));
+
+    if (previousStatus !== ConnectionStatus.OK) {
+      await evaluateConnectionAlerts(workspaceId, "OpenAI", previousStatus, ConnectionStatus.OK)
+        .catch((e) => internalErrorLog("openai.connAlert", e));
+    }
   } catch (error) {
+    const newStatus = ConnectionStatus.DEGRADED;
     await prisma.openAIConnection.update({
       where: { workspaceId },
       data: {
-        status: ConnectionStatus.DEGRADED,
+        status: newStatus,
         lastError: error instanceof Error ? error.message.slice(0, 400) : "OpenAI sync failed",
         lastSyncAt: new Date()
       }
     });
+    if (previousStatus !== newStatus) {
+      await evaluateConnectionAlerts(workspaceId, "OpenAI", previousStatus, newStatus)
+        .catch((e) => internalErrorLog("openai.connAlert", e));
+    }
     internalErrorLog("openai.sync", error);
   }
 }

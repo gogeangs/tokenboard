@@ -9,13 +9,26 @@ datasource db {
 
 enum WorkspaceRole {
   OWNER
+  ADMIN
   MEMBER
+  VIEWER
 }
 
 enum ConnectionStatus {
   OK
   DEGRADED
   DISCONNECTED
+}
+
+enum AlertType {
+  BUDGET_THRESHOLD
+  COST_SPIKE
+  CONNECTION_STATUS
+}
+
+enum AlertChannel {
+  WEBHOOK
+  IN_APP
 }
 
 enum OpenAIConnectionMode {
@@ -29,6 +42,7 @@ model User {
   passwordHash String
   createdAt    DateTime          @default(now())
   memberships  WorkspaceMember[]
+  notifications Notification[]
 }
 
 model Workspace {
@@ -42,6 +56,11 @@ model Workspace {
   dailyCosts   DailyCost[]
   dailyUsage   DailyUsageCompletions[]
   budgets      Budget[]
+  invitations  WorkspaceInvitation[]
+  vertexConnection   VertexAIConnection?
+  bedrockConnection  BedrockConnection?
+  alertRules     AlertRule[]
+  notifications  Notification[]
 }
 
 model WorkspaceMember {
@@ -54,6 +73,23 @@ model WorkspaceMember {
 
   @@id([userId, workspaceId])
   @@index([workspaceId])
+}
+
+model WorkspaceInvitation {
+  id          String        @id @default(cuid())
+  workspaceId String
+  email       String
+  role        WorkspaceRole @default(MEMBER)
+  token       String        @unique
+  expiresAt   DateTime
+  createdBy   String
+  acceptedAt  DateTime?
+  createdAt   DateTime      @default(now())
+
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([token])
 }
 
 model OpenAIConnection {
@@ -83,6 +119,34 @@ model AnthropicConnection {
   updatedAt    DateTime         @updatedAt
 
   workspace    Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model VertexAIConnection {
+  workspaceId       String           @id
+  serviceAccountEnc String
+  projectId         String
+  region            String           @default("us-central1")
+  status            ConnectionStatus @default(DISCONNECTED)
+  lastSyncAt        DateTime?
+  lastError         String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  workspace         Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model BedrockConnection {
+  workspaceId    String           @id
+  accessKeyEnc   String
+  secretKeyEnc   String
+  region         String           @default("us-east-1")
+  status         ConnectionStatus @default(DISCONNECTED)
+  lastSyncAt     DateTime?
+  lastError      String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  workspace      Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model DailyCost {
@@ -137,4 +201,38 @@ model Budget {
 
   @@unique([workspaceId, month])
   @@index([workspaceId, month])
+}
+
+model AlertRule {
+  id          String       @id @default(cuid())
+  workspaceId String
+  type        AlertType
+  channel     AlertChannel @default(IN_APP)
+  enabled     Boolean      @default(true)
+  config      Json
+  webhookUrl  String?
+  createdBy   String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, type])
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String
+  workspaceId String
+  title       String
+  body        String
+  type        AlertType
+  read        Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([workspaceId, createdAt])
 }

@@ -27,6 +27,20 @@ export default async function DashboardPage() {
               updatedAt: true,
               lastSyncAt: true
             }
+          },
+          vertexConnection: {
+            select: {
+              status: true,
+              updatedAt: true,
+              lastSyncAt: true
+            }
+          },
+          bedrockConnection: {
+            select: {
+              status: true,
+              updatedAt: true,
+              lastSyncAt: true
+            }
           }
         }
       }
@@ -47,7 +61,15 @@ export default async function DashboardPage() {
     anthropicConfigured: Boolean(m.workspace.anthropicConnection),
     anthropicStatus: m.workspace.anthropicConnection?.status ?? null,
     anthropicUpdatedAt: m.workspace.anthropicConnection?.updatedAt?.toISOString() ?? null,
-    anthropicLastSyncAt: m.workspace.anthropicConnection?.lastSyncAt?.toISOString() ?? null
+    anthropicLastSyncAt: m.workspace.anthropicConnection?.lastSyncAt?.toISOString() ?? null,
+    vertexConfigured: Boolean(m.workspace.vertexConnection),
+    vertexStatus: m.workspace.vertexConnection?.status ?? null,
+    vertexUpdatedAt: m.workspace.vertexConnection?.updatedAt?.toISOString() ?? null,
+    vertexLastSyncAt: m.workspace.vertexConnection?.lastSyncAt?.toISOString() ?? null,
+    bedrockConfigured: Boolean(m.workspace.bedrockConnection),
+    bedrockStatus: m.workspace.bedrockConnection?.status ?? null,
+    bedrockUpdatedAt: m.workspace.bedrockConnection?.updatedAt?.toISOString() ?? null,
+    bedrockLastSyncAt: m.workspace.bedrockConnection?.lastSyncAt?.toISOString() ?? null
   }));
 
   return <DashboardClient workspaces={workspaces} />;
