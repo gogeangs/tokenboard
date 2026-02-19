@@ -2,7 +2,7 @@ export type WorkspaceOption = {
   id: string;
   displayName: string;
   slug: string;
-  role: string;
+  role: "OWNER" | "MEMBER";
   openAIConfigured?: boolean;
   openAIMode?: "ORGANIZATION" | "PERSONAL" | null;
   openAIStatus?: "OK" | "DEGRADED" | "DISCONNECTED" | null;

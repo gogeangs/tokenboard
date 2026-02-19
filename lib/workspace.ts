@@ -1,7 +1,7 @@
 import { WorkspaceRole } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
-export async function assertWorkspaceMembership(userId: string, workspaceId: string) {
+export async function getWorkspaceMembership(userId: string, workspaceId: string) {
   const membership = await prisma.workspaceMember.findUnique({
     where: {
       userId_workspaceId: {
@@ -14,8 +14,8 @@ export async function assertWorkspaceMembership(userId: string, workspaceId: str
   return membership;
 }
 
-export async function assertWorkspaceOwner(userId: string, workspaceId: string) {
-  const membership = await assertWorkspaceMembership(userId, workspaceId);
+export async function getWorkspaceOwner(userId: string, workspaceId: string) {
+  const membership = await getWorkspaceMembership(userId, workspaceId);
   if (!membership) {
     return null;
   }

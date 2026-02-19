@@ -1,13 +1,16 @@
+import { timingSafeEqual } from "crypto";
 import { NextRequest } from "next/server";
 import { syncAllAnthropicWorkspaces } from "@/lib/anthropic-sync";
 import { getEnv } from "@/lib/env";
+import { internalErrorLog } from "@/lib/errors";
 import { fail, ok } from "@/lib/response";
 import { syncAllWorkspaces } from "@/lib/openai-sync";
 
 function isAuthorized(req: NextRequest): boolean {
-  const auth = req.headers.get("authorization");
+  const auth = req.headers.get("authorization") ?? "";
   const expected = `Bearer ${getEnv().CRON_SECRET}`;
-  return auth === expected;
+  if (auth.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(auth), Buffer.from(expected));
 }
 
 export async function GET(req: NextRequest) {
@@ -15,8 +18,13 @@ export async function GET(req: NextRequest) {
     return fail("Unauthorized", 401);
   }
 
-  const [openAI, anthropic] = await Promise.all([syncAllWorkspaces(30), syncAllAnthropicWorkspaces(30)]);
-  return ok({ success: true, openAI, anthropic });
+  try {
+    const [openAI, anthropic] = await Promise.all([syncAllWorkspaces(30), syncAllAnthropicWorkspaces(30)]);
+    return ok({ success: true, openAI, anthropic });
+  } catch (error) {
+    internalErrorLog("cron.sync", error);
+    return fail("Sync failed", 500);
+  }
 }
 
 export async function POST(req: NextRequest) {

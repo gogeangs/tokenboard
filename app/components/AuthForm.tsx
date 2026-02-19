@@ -19,22 +19,27 @@ export function AuthForm({ mode }: Props) {
     setLoading(true);
     setError(null);
 
-    const res = await fetch(`/api/auth/${mode}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
-    });
+    try {
+      const res = await fetch(`/api/auth/${mode}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!res.ok) {
-      setError(data.error ?? "Request failed");
+      if (!res.ok) {
+        setError(data.error ?? "Request failed");
+        return;
+      }
+
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
+      setError("Request failed");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    router.push("/dashboard");
-    router.refresh();
   }
 
   return (
@@ -42,12 +47,13 @@ export function AuthForm({ mode }: Props) {
       <h1 className="text-xl font-semibold">{mode === "login" ? "Login" : "Create account"}</h1>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="space-y-2">
-        <label className="text-sm">Email</label>
-        <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <label htmlFor="email" className="text-sm">Email</label>
+        <input id="email" className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </div>
       <div className="space-y-2">
-        <label className="text-sm">Password</label>
+        <label htmlFor="password" className="text-sm">Password</label>
         <input
+          id="password"
           className="input"
           type="password"
           value={password}

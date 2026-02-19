@@ -3,6 +3,6 @@ export function publicError(message: string): Error {
 }
 
 export function internalErrorLog(scope: string, error: unknown): void {
-  const message = error instanceof Error ? error.message : "unknown";
-  console.error(`[${scope}] ${message}`);
+  const detail = error instanceof Error ? error.stack ?? error.message : "unknown";
+  console.error(`[${scope}] ${detail}`);
 }

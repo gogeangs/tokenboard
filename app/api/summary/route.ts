@@ -2,120 +2,126 @@ import { NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatMonth, monthRange, startOfDayUtc } from "@/lib/date";
+import { internalErrorLog } from "@/lib/errors";
 import { fail, ok } from "@/lib/response";
 import { summaryQuerySchema } from "@/lib/validators";
-import { assertWorkspaceMembership } from "@/lib/workspace";
+import { getWorkspaceMembership } from "@/lib/workspace";
 
 export async function GET(req: NextRequest) {
-  const user = await getSessionUser();
-  if (!user) return fail("Unauthorized", 401);
+  try {
+    const user = await getSessionUser();
+    if (!user) return fail("Unauthorized", 401);
 
-  const search = req.nextUrl.searchParams;
-  const parsed = summaryQuerySchema.safeParse({
-    workspaceId: search.get("workspaceId"),
-    month: search.get("month")
-  });
+    const search = req.nextUrl.searchParams;
+    const parsed = summaryQuerySchema.safeParse({
+      workspaceId: search.get("workspaceId"),
+      month: search.get("month")
+    });
 
-  if (!parsed.success) {
-    return fail("Invalid query", 400);
-  }
+    if (!parsed.success) {
+      return fail("Invalid query", 400);
+    }
 
-  const { workspaceId, month } = parsed.data;
-  const membership = await assertWorkspaceMembership(user.id, workspaceId);
-  if (!membership) return fail("Forbidden", 403);
+    const { workspaceId, month } = parsed.data;
+    const membership = await getWorkspaceMembership(user.id, workspaceId);
+    if (!membership) return fail("Forbidden", 403);
 
-  const { start, endExclusive } = monthRange(month);
-  const today = startOfDayUtc(new Date());
+    const { start, endExclusive } = monthRange(month);
+    const today = startOfDayUtc(new Date());
 
-  const [monthCosts, todayCosts, budget, openAIConn, anthropicConn] = await Promise.all([
-    prisma.dailyCost.findMany({
-      where: {
-        workspaceId,
-        date: {
-          gte: start,
-          lt: endExclusive
-        }
-      },
-      select: { value: true, currency: true }
-    }),
-    prisma.dailyCost.findMany({
-      where: {
-        workspaceId,
-        date: today
-      },
-      select: { value: true }
-    }),
-    prisma.budget.findUnique({
-      where: {
-        workspaceId_month: {
+    const [monthCosts, todayCosts, budget, openAIConn, anthropicConn] = await Promise.all([
+      prisma.dailyCost.findMany({
+        where: {
           workspaceId,
-          month
+          date: {
+            gte: start,
+            lt: endExclusive
+          }
+        },
+        select: { value: true, currency: true }
+      }),
+      prisma.dailyCost.findMany({
+        where: {
+          workspaceId,
+          date: today
+        },
+        select: { value: true }
+      }),
+      prisma.budget.findUnique({
+        where: {
+          workspaceId_month: {
+            workspaceId,
+            month
+          }
         }
-      }
-    }),
-    prisma.openAIConnection.findUnique({
-      where: { workspaceId },
-      select: {
-        mode: true,
-        lastSyncAt: true,
-        status: true,
-        lastError: true,
-        creditTotalGranted: true,
-        creditTotalUsed: true,
-        creditTotalAvailable: true,
-        creditCurrency: true
-      }
-    }),
-    prisma.anthropicConnection.findUnique({
-      where: { workspaceId },
-      select: {
-        status: true,
-        lastSyncAt: true,
-        lastError: true
-      }
-    })
-  ]);
+      }),
+      prisma.openAIConnection.findUnique({
+        where: { workspaceId },
+        select: {
+          mode: true,
+          lastSyncAt: true,
+          status: true,
+          lastError: true,
+          creditTotalGranted: true,
+          creditTotalUsed: true,
+          creditTotalAvailable: true,
+          creditCurrency: true
+        }
+      }),
+      prisma.anthropicConnection.findUnique({
+        where: { workspaceId },
+        select: {
+          status: true,
+          lastSyncAt: true,
+          lastError: true
+        }
+      })
+    ]);
 
-  const monthCost = monthCosts.reduce((sum, item) => sum + Number(item.value), 0);
-  const todayCost = todayCosts.reduce((sum, item) => sum + Number(item.value), 0);
-  const monthBudget = budget ? Number(budget.amount) : null;
-  const remaining = monthBudget === null ? null : Math.max(0, monthBudget - monthCost);
-  const currency = (budget?.currency ?? monthCosts[0]?.currency ?? "usd").toLowerCase();
+    const monthCost = monthCosts.reduce((sum: number, item: { value: unknown }) => sum + Number(item.value), 0);
+    const todayCost = todayCosts.reduce((sum: number, item: { value: unknown }) => sum + Number(item.value), 0);
+    const monthBudget = budget ? Number(budget.amount) : null;
+    const remaining = monthBudget === null ? null : Math.max(0, monthBudget - monthCost);
+    const currency = (budget?.currency ?? monthCosts[0]?.currency ?? "usd").toLowerCase();
 
-  const statusCandidates = [openAIConn?.status, anthropicConn?.status].filter(Boolean);
-  const status = statusCandidates.includes("DEGRADED")
-    ? "DEGRADED"
-    : statusCandidates.includes("OK")
-      ? "OK"
-      : "DISCONNECTED";
+    const statusCandidates = [openAIConn?.status, anthropicConn?.status].filter(Boolean);
+    const status = statusCandidates.includes("DEGRADED")
+      ? "DEGRADED"
+      : statusCandidates.includes("OK")
+        ? "OK"
+        : "DISCONNECTED";
 
-  const lastSyncAt = [openAIConn?.lastSyncAt, anthropicConn?.lastSyncAt]
-    .filter((item): item is Date => Boolean(item))
-    .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+    const lastSyncAt = [openAIConn?.lastSyncAt, anthropicConn?.lastSyncAt]
+      .filter((item): item is Date => Boolean(item))
+      .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
 
-  const lastError = openAIConn?.lastError ?? anthropicConn?.lastError ?? null;
+    const lastError = openAIConn?.lastError ?? anthropicConn?.lastError ?? null;
 
-  return ok({
-    month: formatMonth(start),
-    monthCost,
-    todayCost,
-    monthBudget,
-    remaining,
-    currency,
-    connectionMode: openAIConn?.mode ?? "ORGANIZATION",
-    lastSyncAt,
-    status,
-    lastError,
-    creditTotalGranted:
-      openAIConn?.creditTotalGranted !== null && openAIConn?.creditTotalGranted !== undefined
-        ? Number(openAIConn.creditTotalGranted)
-        : null,
-    creditTotalUsed:
-      openAIConn?.creditTotalUsed !== null && openAIConn?.creditTotalUsed !== undefined ? Number(openAIConn.creditTotalUsed) : null,
-    creditTotalAvailable:
-      openAIConn?.creditTotalAvailable !== null && openAIConn?.creditTotalAvailable !== undefined
-        ? Number(openAIConn.creditTotalAvailable)
-        : null,
-    creditCurrency: openAIConn?.creditCurrency ?? null
-  });
+    return ok({
+      month: formatMonth(start),
+      monthCost,
+      todayCost,
+      monthBudget,
+      remaining,
+      currency,
+      connectionMode: openAIConn?.mode ?? "ORGANIZATION",
+      lastSyncAt,
+      status,
+      lastError,
+      creditTotalGranted:
+        openAIConn?.creditTotalGranted !== null && openAIConn?.creditTotalGranted !== undefined
+          ? Number(openAIConn.creditTotalGranted)
+          : null,
+      creditTotalUsed:
+        openAIConn?.creditTotalUsed !== null && openAIConn?.creditTotalUsed !== undefined ? Number(openAIConn.creditTotalUsed) : null,
+      creditTotalAvailable:
+        openAIConn?.creditTotalAvailable !== null && openAIConn?.creditTotalAvailable !== undefined
+          ? Number(openAIConn.creditTotalAvailable)
+          : null,
+      creditCurrency: openAIConn?.creditCurrency ?? null
+    });
+  } catch (error) {
+    internalErrorLog("api.summary", error);
+    return fail("Internal error", 500);
+  }
 }

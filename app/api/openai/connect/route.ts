@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { internalErrorLog } from "@/lib/errors";
 import { fail, ok } from "@/lib/response";
 import { connectOpenAISchema } from "@/lib/validators";
-import { assertWorkspaceOwner } from "@/lib/workspace";
+import { getWorkspaceOwner } from "@/lib/workspace";
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { workspaceId, apiKey, mode } = parsed.data;
-    const owner = await assertWorkspaceOwner(user.id, workspaceId);
+    const owner = await getWorkspaceOwner(user.id, workspaceId);
     if (!owner) {
       return fail("Forbidden", 403);
     }

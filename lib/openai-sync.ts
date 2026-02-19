@@ -81,6 +81,8 @@ type OpenAIPersonalCreditResult = {
 };
 
 const OPENAI_BASE = "https://api.openai.com/v1";
+const MAX_PAGES = 100;
+const SYNC_BATCH_SIZE = 5;
 
 async function openAIFetch<T>(path: string, apiKey: string, params?: URLSearchParams): Promise<T> {
   const url = params ? `${OPENAI_BASE}${path}?${params.toString()}` : `${OPENAI_BASE}${path}`;
@@ -102,6 +104,7 @@ async function openAIFetch<T>(path: string, apiKey: string, params?: URLSearchPa
 
 async function fetchAllCostBuckets(apiKey: string, startTime: number, endTime: number) {
   let page: string | null = null;
+  let pageCount = 0;
   const buckets: Array<{
     start_time: number;
     end_time: number;
@@ -127,7 +130,8 @@ async function fetchAllCostBuckets(apiKey: string, startTime: number, endTime: n
     buckets.push(...chunk);
 
     page = data.organization_costs?.next_page ?? data.next_page ?? null;
-    if (!page) break;
+    pageCount++;
+    if (!page || pageCount >= MAX_PAGES) break;
   }
 
   return buckets;
@@ -135,6 +139,7 @@ async function fetchAllCostBuckets(apiKey: string, startTime: number, endTime: n
 
 async function fetchAllUsageBuckets(apiKey: string, startTime: number, endTime: number) {
   let page: string | null = null;
+  let pageCount = 0;
   const buckets: NonNullable<OpenAIUsageResult["data"]> = [];
 
   while (true) {
@@ -155,7 +160,8 @@ async function fetchAllUsageBuckets(apiKey: string, startTime: number, endTime: 
     buckets.push(...(data.data ?? []));
 
     page = data.next_page ?? null;
-    if (!page) break;
+    pageCount++;
+    if (!page || pageCount >= MAX_PAGES) break;
   }
 
   return buckets;
@@ -396,7 +402,10 @@ export async function syncAllWorkspaces(days = 30): Promise<{ total: number }> {
     select: { workspaceId: true }
   });
 
-  await Promise.all(connections.map((item) => syncWorkspaceOpenAI(item.workspaceId, days)));
+  for (let i = 0; i < connections.length; i += SYNC_BATCH_SIZE) {
+    const batch = connections.slice(i, i + SYNC_BATCH_SIZE);
+    await Promise.all(batch.map((item) => syncWorkspaceOpenAI(item.workspaceId, days)));
+  }
 
   return { total: connections.length };
 }

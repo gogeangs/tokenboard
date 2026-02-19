@@ -22,10 +22,12 @@ export function BreakdownClient({ workspaces }: Props) {
     return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
   }, []);
 
+  const byParam = searchParams.get("by");
+  const validBy = ["project", "line_item", "model"] as const;
+  const initialBy = validBy.includes(byParam as typeof validBy[number]) ? (byParam as typeof validBy[number]) : "project";
+
   const [workspaceId, setWorkspaceId] = useState(searchParams.get("workspaceId") ?? workspaces[0]?.id ?? "");
-  const [by, setBy] = useState<"project" | "line_item" | "model">(
-    (searchParams.get("by") as "project" | "line_item" | "model") ?? "project"
-  );
+  const [by, setBy] = useState<"project" | "line_item" | "model">(initialBy);
   const [month, setMonth] = useState(searchParams.get("month") ?? currentMonth);
   const [items, setItems] = useState<Array<CostItem | ModelItem>>([]);
   const [metric, setMetric] = useState("cost");
@@ -47,31 +49,36 @@ export function BreakdownClient({ workspaces }: Props) {
     setError(null);
     syncQuery(state);
 
-    const res = await fetch(`/api/breakdown?workspaceId=${state.workspaceId}&month=${state.month}&by=${state.by}`);
-    const data = await res.json();
+    try {
+      const res = await fetch(`/api/breakdown?workspaceId=${state.workspaceId}&month=${state.month}&by=${state.by}`);
+      const data = await res.json();
 
-    if (!res.ok) {
-      setError(data.error ?? "Failed to load breakdown");
+      if (!res.ok) {
+        setError(data.error ?? "Failed to load breakdown");
+        return;
+      }
+
+      setItems(data.items ?? []);
+      setMetric(data.metric);
+      setCurrency(data.currency ?? "usd");
+    } catch {
+      setError("Failed to load breakdown");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setItems(data.items ?? []);
-    setMetric(data.metric);
-    setCurrency(data.currency ?? "usd");
-    setLoading(false);
   }
 
   useEffect(() => {
     if (!workspaceId) return;
     void loadBreakdown({ workspaceId, by, month });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [workspaceId, by, month]);
 
   const topItems = items.slice(0, 5).map((item) => ({
     key: item.key,
     value: "value" in item ? item.value : Number(item.totalTokens)
   }));
+
+  if (!workspaces.length) return <p>No workspace found.</p>;
 
   return (
     <div className="space-y-4">
@@ -79,12 +86,12 @@ export function BreakdownClient({ workspaces }: Props) {
         <h1 className="text-lg font-semibold">Breakdown</h1>
         <div className="grid w-full gap-2 md:w-auto md:grid-cols-4">
           <select
+            aria-label="Workspace"
             className="input"
             value={workspaceId}
             onChange={(e) => {
               const next = e.target.value;
               setWorkspaceId(next);
-              void loadBreakdown({ workspaceId: next, by, month });
             }}
           >
             {workspaces.map((workspace) => (
@@ -94,12 +101,12 @@ export function BreakdownClient({ workspaces }: Props) {
             ))}
           </select>
           <select
+            aria-label="Group by"
             className="input"
             value={by}
             onChange={(e) => {
               const next = e.target.value as typeof by;
               setBy(next);
-              void loadBreakdown({ workspaceId, by: next, month });
             }}
           >
             <option value="project">Project</option>
@@ -107,13 +114,13 @@ export function BreakdownClient({ workspaces }: Props) {
             <option value="model">Model</option>
           </select>
           <input
+            aria-label="Month"
             className="input"
             type="month"
             value={month}
             onChange={(e) => {
               const next = e.target.value;
               setMonth(next);
-              void loadBreakdown({ workspaceId, by, month: next });
             }}
           />
           <button className="btn" onClick={() => void loadBreakdown()}>
@@ -149,6 +156,7 @@ export function BreakdownClient({ workspaces }: Props) {
             </div>
 
             <table className="w-full text-left text-sm">
+              <caption className="sr-only">Breakdown by {by}</caption>
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500">
                   <th className="py-2">Key</th>

@@ -49,6 +49,8 @@ type AnthropicUsageResponse = {
 
 const ANTHROPIC_BASE = "https://api.anthropic.com/v1";
 const ANTHROPIC_VERSION = "2023-06-01";
+const MAX_PAGES = 100;
+const SYNC_BATCH_SIZE = 5;
 
 function toAmount(value: unknown): number {
   if (typeof value === "number") return value;
@@ -88,6 +90,7 @@ async function anthropicFetch<T>(path: string, apiKey: string, params: URLSearch
 
 async function fetchAllAnthropicCost(apiKey: string, startAt: string, endAt: string) {
   let page: string | null = null;
+  let pageCount = 0;
   const buckets: NonNullable<AnthropicCostResponse["data"]> = [];
 
   while (true) {
@@ -104,7 +107,8 @@ async function fetchAllAnthropicCost(apiKey: string, startAt: string, endAt: str
     buckets.push(...(data.data ?? []));
 
     page = data.has_more ? data.next_page ?? null : null;
-    if (!page) break;
+    pageCount++;
+    if (!page || pageCount >= MAX_PAGES) break;
   }
 
   return buckets;
@@ -112,6 +116,7 @@ async function fetchAllAnthropicCost(apiKey: string, startAt: string, endAt: str
 
 async function fetchAllAnthropicUsage(apiKey: string, startAt: string, endAt: string) {
   let page: string | null = null;
+  let pageCount = 0;
   const buckets: NonNullable<AnthropicUsageResponse["data"]> = [];
 
   while (true) {
@@ -128,7 +133,8 @@ async function fetchAllAnthropicUsage(apiKey: string, startAt: string, endAt: st
     buckets.push(...(data.data ?? []));
 
     page = data.has_more ? data.next_page ?? null : null;
-    if (!page) break;
+    pageCount++;
+    if (!page || pageCount >= MAX_PAGES) break;
   }
 
   return buckets;
@@ -273,7 +279,10 @@ export async function syncAllAnthropicWorkspaces(days = 30): Promise<{ total: nu
     select: { workspaceId: true }
   });
 
-  await Promise.all(connections.map((item) => syncWorkspaceAnthropic(item.workspaceId, days)));
+  for (let i = 0; i < connections.length; i += SYNC_BATCH_SIZE) {
+    const batch = connections.slice(i, i + SYNC_BATCH_SIZE);
+    await Promise.all(batch.map((item) => syncWorkspaceAnthropic(item.workspaceId, days)));
+  }
 
   return { total: connections.length };
 }

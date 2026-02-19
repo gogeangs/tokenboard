@@ -69,20 +69,24 @@ export function DashboardClient({ workspaces }: Props) {
     setError(null);
     setTrend(null);
 
-    const [summaryRes, trendRes] = await Promise.all([
-      fetch(`/api/summary?workspaceId=${workspaceId}&month=${month}`),
-      fetch(`/api/trend?workspaceId=${workspaceId}&from=${from.toISOString()}&to=${to.toISOString()}`)
-    ]);
+    try {
+      const [summaryRes, trendRes] = await Promise.all([
+        fetch(`/api/summary?workspaceId=${workspaceId}&month=${month}`),
+        fetch(`/api/trend?workspaceId=${workspaceId}&from=${from.toISOString()}&to=${to.toISOString()}`)
+      ]);
 
-    if (!summaryRes.ok || !trendRes.ok) {
+      if (!summaryRes.ok || !trendRes.ok) {
+        setError("Failed to load dashboard");
+        return;
+      }
+
+      const summaryJson: SummaryResponse = await summaryRes.json();
+      const trendJson: TrendResponse = await trendRes.json();
+      setSummary(summaryJson);
+      setTrend(trendJson.trend);
+    } catch {
       setError("Failed to load dashboard");
-      return;
     }
-
-    const summaryJson: SummaryResponse = await summaryRes.json();
-    const trendJson: TrendResponse = await trendRes.json();
-    setSummary(summaryJson);
-    setTrend(trendJson.trend);
   }
 
   useEffect(() => {
@@ -94,21 +98,26 @@ export function DashboardClient({ workspaces }: Props) {
     setSyncing(true);
     setError(null);
 
-    const res = await fetch("/api/openai/sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ workspaceId })
-    });
+    try {
+      const res = await fetch("/api/openai/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId })
+      });
 
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error ?? "Sync failed");
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Sync failed");
+        setSyncing(false);
+        return;
+      }
+
+      await loadDashboard();
       setSyncing(false);
-      return;
+    } catch {
+      setError("Sync failed");
+      setSyncing(false);
     }
-
-    await loadDashboard();
-    setSyncing(false);
   }
 
   if (!workspaces.length) {
@@ -136,7 +145,7 @@ export function DashboardClient({ workspaces }: Props) {
           </span>
         </div>
         <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row">
-          <select className="input md:w-72" value={workspaceId} onChange={(e) => setWorkspaceId(e.target.value)}>
+          <select aria-label="Workspace" className="input md:w-72" value={workspaceId} onChange={(e) => setWorkspaceId(e.target.value)}>
             {workspaces.map((workspace) => (
               <option key={workspace.id} value={workspace.id}>
                 {workspace.displayName}

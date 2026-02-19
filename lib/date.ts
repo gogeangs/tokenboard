@@ -9,7 +9,7 @@ export function formatMonth(date: Date): string {
 
 export function monthRange(month: string): { start: Date; endExclusive: Date } {
   const [year, monthPart] = month.split("-").map(Number);
-  if (!year || !monthPart) {
+  if (!year || !monthPart || monthPart < 1 || monthPart > 12) {
     throw new Error("Invalid month format");
   }
   const start = new Date(Date.UTC(year, monthPart - 1, 1));

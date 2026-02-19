@@ -5,7 +5,7 @@ import { internalErrorLog } from "@/lib/errors";
 import { syncWorkspaceOpenAI } from "@/lib/openai-sync";
 import { fail, ok } from "@/lib/response";
 import { syncWorkspaceSchema } from "@/lib/validators";
-import { assertWorkspaceOwner } from "@/lib/workspace";
+import { getWorkspaceOwner } from "@/lib/workspace";
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { workspaceId } = parsed.data;
-    const owner = await assertWorkspaceOwner(user.id, workspaceId);
+    const owner = await getWorkspaceOwner(user.id, workspaceId);
     if (!owner) return fail("Forbidden", 403);
 
     await Promise.all([syncWorkspaceOpenAI(workspaceId, 30), syncWorkspaceAnthropic(workspaceId, 30)]);
